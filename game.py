@@ -23,6 +23,7 @@ pygame.display.set_caption("Agentic Battle - Slime Arena")
 clock = pygame.time.Clock()
 font = pygame.font.Font(None, 36)
 big_font = pygame.font.Font(None, 72)
+small_font = pygame.font.Font(None, 28)
 
 WHITE = (255, 255, 255)
 BLACK = (0, 0, 0)
@@ -290,10 +291,11 @@ def main():
     water_level = HEIGHT + 50
     water_rising = False
     round_timer = 0
-    round_delay = 0
+    round_ended = False
     message = ""
     message_timer = 0
     message_surf = None
+    prompt_surf = small_font.render("Press any key to continue", True, WHITE)
 
     platforms = create_platforms()
     players = init_players()
@@ -305,6 +307,16 @@ def main():
         message = text
         message_timer = duration
         message_surf = big_font.render(text, True, WHITE)
+
+    def check_round_end():
+        nonlocal round_ended
+        if round_ended:
+            return
+        alive = [p for p in players if p.alive]
+        if len(alive) <= 1:
+            winner = alive[0].name if alive else "DRAW"
+            show_message(f"{winner} WINS!" if alive else "DRAW!", 999999)
+            round_ended = True
 
     show_message(f"ROUND {round_num}", 90)
 
@@ -323,11 +335,9 @@ def main():
                 water_level = HEIGHT + 50
                 water_rising = False
                 round_timer = 0
+                round_ended = False
                 show_message(f"ROUND {round_num}", 90)
-
-        if round_delay > 0:
-            round_delay -= 1
-            if round_delay == 0:
+            if event.type == pygame.KEYDOWN and round_ended:
                 round_num += 1
                 platforms = create_platforms()
                 players = init_players()
@@ -336,7 +346,36 @@ def main():
                 water_level = HEIGHT + 50
                 water_rising = False
                 round_timer = 0
+                round_ended = False
                 show_message(f"ROUND {round_num}", 90)
+
+        if message_timer > 0:
+            message_timer -= 1
+
+        if round_ended:
+            particles = [p for p in particles if p.update()]
+            draw_background()
+            for plat in platforms:
+                plat.draw()
+            draw_water()
+            for arrow in arrows:
+                arrow.draw()
+            for player in players:
+                player.draw()
+            for p in particles:
+                p.draw()
+
+            if message_timer > 0 and message_surf:
+                text_rect = message_surf.get_rect(center=(WIDTH // 2, HEIGHT // 2 - 20))
+                screen.blit(message_surf, text_rect)
+                prompt_rect = prompt_surf.get_rect(
+                    center=(WIDTH // 2, HEIGHT // 2 + 30)
+                )
+                screen.blit(prompt_surf, prompt_rect)
+
+            pygame.display.flip()
+            clock.tick(FPS)
+            continue
 
         if message_timer > 0:
             message_timer -= 1
@@ -345,6 +384,7 @@ def main():
             result = player.update(keys_pressed, platforms)
             if result:
                 particles.extend(result)
+        check_round_end()
 
         for player in players:
             if keys_pressed[player.controls["shoot"]]:
@@ -359,11 +399,7 @@ def main():
             elif isinstance(result, Player):
                 particles.extend(result.die())
                 arrows.pop(i)
-                alive = [p for p in players if p.alive]
-                if len(alive) <= 1:
-                    winner = alive[0].name if alive else "DRAW"
-                    show_message(f"{winner} WINS!" if alive else "DRAW!", 120)
-                    round_delay = 120
+                check_round_end()
 
         particles = [p for p in particles if p.update()]
 
@@ -387,7 +423,7 @@ def main():
             p.draw()
 
         if message_timer > 0 and message_surf:
-            text_rect = message_surf.get_rect(center=(WIDTH // 2, HEIGHT // 2))
+            text_rect = message_surf.get_rect(center=(WIDTH // 2, HEIGHT // 2 - 20))
             screen.blit(message_surf, text_rect)
 
         p1_status = font.render(
