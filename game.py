@@ -91,44 +91,30 @@ class Player:
             self.on_wall = 0
 
         self.vy += GRAVITY
-        self.rect.x += self.vx
-        self.rect.y += self.vy
 
         self.on_ground = False
         self.on_wall = 0
 
+        self.rect.x += self.vx
         for plat in platforms:
-            if (
-                self.rect.x + self.rect.w > plat.rect.x
-                and self.rect.x < plat.rect.x + plat.rect.w
-            ):
-                if (
-                    self.rect.y + self.rect.h > plat.rect.y
-                    and self.rect.y + self.rect.h < plat.rect.y + plat.rect.h // 2
-                    and self.vy >= 0
-                ):
-                    self.rect.y = plat.rect.y - self.rect.h
-                    self.vy = 0
-                    self.on_ground = True
-
-            if (
-                self.rect.y + self.rect.h > plat.rect.y + 4
-                and self.rect.y < plat.rect.y + plat.rect.h
-            ):
-                if (
-                    self.rect.x + self.rect.w > plat.rect.x
-                    and self.rect.x + self.rect.w < plat.rect.x + plat.rect.w // 2
-                    and self.vx > 0
-                ):
-                    self.rect.x = plat.rect.x - self.rect.w
-                    self.on_wall = 1
-                if (
-                    self.rect.x < plat.rect.x + plat.rect.w
-                    and self.rect.x > plat.rect.x + plat.rect.w // 2
-                    and self.vx < 0
-                ):
-                    self.rect.x = plat.rect.x + plat.rect.w
+            if self.rect.colliderect(plat.rect):
+                if self.vx > 0:
+                    self.rect.right = plat.rect.left
                     self.on_wall = -1
+                elif self.vx < 0:
+                    self.rect.left = plat.rect.right
+                    self.on_wall = 1
+                self.vx = 0
+
+        self.rect.y += self.vy
+        for plat in platforms:
+            if self.rect.colliderect(plat.rect):
+                if self.vy > 0:
+                    self.rect.bottom = plat.rect.top
+                    self.on_ground = True
+                elif self.vy < 0:
+                    self.rect.top = plat.rect.bottom
+                self.vy = 0
 
         if (
             self.rect.y > water_level
