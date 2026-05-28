@@ -26,9 +26,9 @@ Adicionado uma tela de vitória com prompt para restart
 
 ---
 Mudamos o modelo para o `deepseek-v4-flash` a separamos as features a serem adicionadas:
-- Substituir plataformas por planetoides com gravidade própria
-- Modificar a mecânica de tiro para permitir mirar cada tiro
-- Adicionar mais hazards à arena
+- Feat 1:Substituir plataformas por planetoides com gravidade própria
+- Feat 2:Modificar a mecânica de tiro para permitir mirar cada tiro
+- Feat 3:Adicionar mais hazards à arena
 
 ## Feat 1
 De início pedimos para o agente substituir as plataformas com planetoides que possuem sua próŕia gravidade.
@@ -39,8 +39,9 @@ The platforms should be circle-shaped with their own gravity (like planets), and
 player characters towards themselves
 ```
 
-Isso modificou corretamente as plataformas, mas a gravidade ainda não estava correta, a gravidade dos
-planetoides só fazia efeito
+Isso modificou corretamente as plataformas, mas a gravidade ainda não estava correta, pois como estava, a gravidade dos
+planetoides só fazia efeito quando o jogador fazia contato direto com o chão de cada planetoide, ou seja, não era o comportamento desejado.
+O que demanda mais prompts de correção
 
 ## Feat 2
 
