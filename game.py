@@ -1,3 +1,4 @@
+import math
 import random
 import sys
 
@@ -10,10 +11,8 @@ TILE_SIZE = 32
 FPS = 60
 
 GRAVITY = 0.6
-JUMP_FORCE = -12
+JUMP_FORCE = 12
 MOVE_SPEED = 5
-WALL_JUMP_FORCE_X = 8
-WALL_JUMP_FORCE_Y = -10
 ARROW_SPEED = 10
 ARROW_COOLDOWN = 500
 WATER_RISE_SPEED = 0.2
@@ -39,18 +38,85 @@ ARROW_HEAD = (160, 82, 45)
 
 
 class Platform:
-    def __init__(self, x, y, w, h):
-        self.rect = pygame.Rect(x, y, w, h)
+    def __init__(self, x, y, radius):
+        self.x = x
+        self.y = y
+        self.radius = radius
+        self.gravity_strength = radius * radius * 0.00015
+        self.gravity_range = radius * 3
+
+    def apply_gravity(self, player):
+        dx = player.rect.centerx - self.x
+        dy = player.rect.centery - self.y
+        dist = math.sqrt(dx * dx + dy * dy)
+        if 0 < dist < self.gravity_range:
+            force = self.gravity_strength * (1 - dist / self.gravity_range)
+            player.vx -= force * dx / dist
+            player.vy -= force * dy / dist
+            return True
+        return False
+
+    def collide_player(self, player):
+        if player.rect.collidepoint(self.x, self.y):
+            dx = player.rect.centerx - self.x
+            dy = player.rect.centery - self.y
+            if dx == 0 and dy == 0:
+                dy = -1
+            dist = math.sqrt(dx * dx + dy * dy)
+            nx = dx / dist
+            ny = dy / dist
+            push = self.radius + 12 - dist
+            player.rect.x += nx * push
+            player.rect.y += ny * push
+            player.on_ground = True
+            player.ground_nx = nx
+            player.ground_ny = ny
+            if player.vx * nx + player.vy * ny < 0:
+                player.vy = 0
+            if abs(nx) > 0.7:
+                player.on_wall = 1 if nx > 0 else -1
+            return
+        cx = max(player.rect.left, min(self.x, player.rect.right))
+        cy = max(player.rect.top, min(self.y, player.rect.bottom))
+        dx = cx - self.x
+        dy = cy - self.y
+        dist = math.sqrt(dx * dx + dy * dy)
+        if dist >= self.radius or dist == 0:
+            return
+        overlap = self.radius - dist
+        nx = dx / dist
+        ny = dy / dist
+        player.rect.x += nx * overlap
+        player.rect.y += ny * overlap
+        player.on_ground = True
+        player.ground_nx = nx
+        player.ground_ny = ny
+        if player.vx * nx + player.vy * ny < 0:
+            player.vy = 0
+        if abs(nx) > 0.7:
+            player.on_wall = 1 if nx > 0 else -1
 
     def draw(self):
-        pygame.draw.rect(screen, PLATFORM_COLOR, self.rect)
-        pygame.draw.rect(
-            screen, PLATFORM_TOP, (self.rect.x, self.rect.y, self.rect.w, 4)
+        pygame.draw.circle(
+            screen, (50, 55, 90), (int(self.x), int(self.y)), int(self.gravity_range), 2
         )
-        for i in range(0, self.rect.w, TILE_SIZE):
-            pygame.draw.rect(
-                screen, PLATFORM_LINE, (self.rect.x + i, self.rect.y, 2, self.rect.h)
-            )
+        for ring in range(1, 4):
+            r = int(self.radius * (1 + ring * 0.5))
+            if r <= self.gravity_range:
+                alpha = max(0, 60 - ring * 15)
+                s = pygame.Surface((r * 2, r * 2), pygame.SRCALPHA)
+                pygame.draw.circle(s, (*PLATFORM_TOP[:3], alpha), (r, r), r, 1)
+                screen.blit(s, (self.x - r, self.y - r))
+        pygame.draw.circle(screen, PLATFORM_COLOR, (int(self.x), int(self.y)), self.radius)
+        pygame.draw.circle(
+            screen, PLATFORM_TOP, (int(self.x), int(self.y)), self.radius, 3
+        )
+        for i in range(-self.radius + TILE_SIZE // 2, self.radius, TILE_SIZE):
+            if abs(i) < self.radius:
+                h = int(math.sqrt(max(0, self.radius * self.radius - i * i)))
+                pygame.draw.line(
+                    screen, PLATFORM_LINE, (self.x + i, self.y - h), (self.x + i, self.y + h), 2
+                )
 
 
 class Player:
@@ -67,6 +133,8 @@ class Player:
         self.last_shot = 0
         self.facing = 1
         self.spawn_pos = (x, y)
+        self.ground_nx = 0
+        self.ground_ny = -1
 
     def update(self, keys, platforms):
         if not self.alive:
@@ -83,39 +151,25 @@ class Player:
             self.vx *= 0.8
 
         if keys[ctrl["up"]] and self.on_ground:
-            self.vy = JUMP_FORCE
+            self.vx = self.ground_nx * JUMP_FORCE
+            self.vy = self.ground_ny * JUMP_FORCE
             self.on_ground = False
 
-        if keys[ctrl["up"]] and self.on_wall != 0 and not self.on_ground:
-            self.vx = -self.on_wall * WALL_JUMP_FORCE_X
-            self.vy = WALL_JUMP_FORCE_Y
-            self.on_wall = 0
+        in_gravity_field = False
+        for plat in platforms:
+            if plat.apply_gravity(self):
+                in_gravity_field = True
 
-        self.vy += GRAVITY
+        if not in_gravity_field:
+            self.vy += GRAVITY
 
         self.on_ground = False
         self.on_wall = 0
 
         self.rect.x += self.vx
-        for plat in platforms:
-            if self.rect.colliderect(plat.rect):
-                if self.vx > 0:
-                    self.rect.right = plat.rect.left
-                    self.on_wall = -1
-                elif self.vx < 0:
-                    self.rect.left = plat.rect.right
-                    self.on_wall = 1
-                self.vx = 0
-
         self.rect.y += self.vy
         for plat in platforms:
-            if self.rect.colliderect(plat.rect):
-                if self.vy > 0:
-                    self.rect.bottom = plat.rect.top
-                    self.on_ground = True
-                elif self.vy < 0:
-                    self.rect.top = plat.rect.bottom
-                self.vy = 0
+            plat.collide_player(self)
 
         if (
             self.rect.y > water_level
@@ -180,7 +234,11 @@ class Arrow:
         self.rect.x += self.vx
         hit = False
         for plat in platforms:
-            if self.rect.colliderect(plat.rect):
+            cx = max(self.rect.left, min(plat.x, self.rect.right))
+            cy = max(self.rect.top, min(plat.y, self.rect.bottom))
+            dx = cx - plat.x
+            dy = cy - plat.y
+            if dx * dx + dy * dy < plat.radius * plat.radius:
                 hit = True
                 break
         if not hit:
@@ -229,12 +287,12 @@ class Particle:
 
 def create_platforms():
     return [
-        Platform(200, 350, 400, 32),
-        Platform(100, 250, 150, 24),
-        Platform(550, 250, 150, 24),
-        Platform(300, 150, 200, 24),
-        Platform(50, 450, 100, 24),
-        Platform(650, 450, 100, 24),
+        Platform(400, 450, 140),
+        Platform(180, 280, 60),
+        Platform(620, 280, 60),
+        Platform(400, 140, 60),
+        Platform(80, 490, 40),
+        Platform(720, 490, 40),
     ]
 
 
