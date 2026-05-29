@@ -6,7 +6,7 @@ import pygame
 
 pygame.init()
 
-WIDTH, HEIGHT = 800, 600
+WIDTH, HEIGHT = 1400, 900
 TILE_SIZE = 32
 FPS = 60
 
@@ -38,12 +38,38 @@ ARROW_HEAD = (160, 82, 45)
 
 
 class Platform:
-    def __init__(self, x, y, radius):
+    def __init__(self, x, y, shape, rx, ry=None, angle=0):
         self.x = x
         self.y = y
-        self.radius = radius
-        self.gravity_strength = radius * radius * 0.00015
-        self.gravity_range = radius * 3
+        self.shape = shape
+        self.angle = angle
+        self.rx = rx
+        self.ry = ry if ry is not None else rx
+        if shape == 'circle':
+            self.radius = rx
+        else:
+            self.radius = max(rx, ry)
+        self.gravity_strength = self.radius * self.radius * 0.00015
+        self.gravity_range = self.radius * 3
+
+    def get_boundary_radius(self, world_angle):
+        if self.shape == 'circle':
+            return self.radius
+        local_angle = world_angle - self.angle
+        c = math.cos(local_angle)
+        s = math.sin(local_angle)
+        return self.rx * self.ry / math.sqrt((self.ry * c)**2 + (self.rx * s)**2)
+
+    def point_inside(self, px, py):
+        dx = px - self.x
+        dy = py - self.y
+        if self.shape == 'circle':
+            return dx*dx + dy*dy <= self.radius * self.radius
+        c = math.cos(self.angle)
+        s = math.sin(self.angle)
+        lx = dx * c + dy * s
+        ly = -dx * s + dy * c
+        return (lx / self.rx)**2 + (ly / self.ry)**2 <= 1
 
     def apply_gravity(self, player):
         dx = player.rect.centerx - self.x
@@ -57,7 +83,7 @@ class Platform:
         return False
 
     def collide_player(self, player):
-        if player.rect.collidepoint(self.x, self.y):
+        if self.point_inside(player.rect.centerx, player.rect.centery):
             dx = player.rect.centerx - self.x
             dy = player.rect.centery - self.y
             if dx == 0 and dy == 0:
@@ -65,7 +91,8 @@ class Platform:
             dist = math.sqrt(dx * dx + dy * dy)
             nx = dx / dist
             ny = dy / dist
-            push = self.radius + 12 - dist
+            angle_to = math.atan2(dy, dx)
+            push = self.get_boundary_radius(angle_to) + 12 - dist
             player.rect.x += nx * push
             player.rect.y += ny * push
             player.on_ground = True
@@ -78,45 +105,62 @@ class Platform:
             return
         cx = max(player.rect.left, min(self.x, player.rect.right))
         cy = max(player.rect.top, min(self.y, player.rect.bottom))
-        dx = cx - self.x
-        dy = cy - self.y
-        dist = math.sqrt(dx * dx + dy * dy)
-        if dist >= self.radius or dist == 0:
-            return
-        overlap = self.radius - dist
-        nx = dx / dist
-        ny = dy / dist
-        player.rect.x += nx * overlap
-        player.rect.y += ny * overlap
-        player.on_ground = True
-        player.ground_nx = nx
-        player.ground_ny = ny
-        if player.vx * nx + player.vy * ny < 0:
-            player.vy = 0
-        if abs(nx) > 0.7:
-            player.on_wall = 1 if nx > 0 else -1
+        if self.point_inside(cx, cy):
+            dx = cx - self.x
+            dy = cy - self.y
+            dist = math.sqrt(dx * dx + dy * dy)
+            if dist == 0:
+                return
+            angle_to = math.atan2(dy, dx)
+            overlap = self.get_boundary_radius(angle_to) - dist
+            nx = dx / dist
+            ny = dy / dist
+            player.rect.x += nx * overlap
+            player.rect.y += ny * overlap
+            player.on_ground = True
+            player.ground_nx = nx
+            player.ground_ny = ny
+            if player.vx * nx + player.vy * ny < 0:
+                player.vy = 0
+            if abs(nx) > 0.7:
+                player.on_wall = 1 if nx > 0 else -1
 
     def draw(self):
         pygame.draw.circle(
             screen, (50, 55, 90), (int(self.x), int(self.y)), int(self.gravity_range), 2
         )
-        for ring in range(1, 4):
-            r = int(self.radius * (1 + ring * 0.5))
-            if r <= self.gravity_range:
-                alpha = max(0, 60 - ring * 15)
-                s = pygame.Surface((r * 2, r * 2), pygame.SRCALPHA)
-                pygame.draw.circle(s, (*PLATFORM_TOP[:3], alpha), (r, r), r, 1)
-                screen.blit(s, (self.x - r, self.y - r))
-        pygame.draw.circle(screen, PLATFORM_COLOR, (int(self.x), int(self.y)), self.radius)
-        pygame.draw.circle(
-            screen, PLATFORM_TOP, (int(self.x), int(self.y)), self.radius, 3
-        )
-        for i in range(-self.radius + TILE_SIZE // 2, self.radius, TILE_SIZE):
-            if abs(i) < self.radius:
-                h = int(math.sqrt(max(0, self.radius * self.radius - i * i)))
-                pygame.draw.line(
-                    screen, PLATFORM_LINE, (self.x + i, self.y - h), (self.x + i, self.y + h), 2
-                )
+        if self.shape == 'circle':
+            for ring in range(1, 4):
+                r = int(self.radius * (1 + ring * 0.5))
+                if r <= self.gravity_range:
+                    alpha = max(0, 60 - ring * 15)
+                    s = pygame.Surface((r * 2, r * 2), pygame.SRCALPHA)
+                    pygame.draw.circle(s, (*PLATFORM_TOP[:3], alpha), (r, r), r, 1)
+                    screen.blit(s, (self.x - r, self.y - r))
+            pygame.draw.circle(screen, PLATFORM_COLOR, (int(self.x), int(self.y)), self.radius)
+            pygame.draw.circle(
+                screen, PLATFORM_TOP, (int(self.x), int(self.y)), self.radius, 3
+            )
+            for i in range(-self.radius + TILE_SIZE // 2, self.radius, TILE_SIZE):
+                if abs(i) < self.radius:
+                    h = int(math.sqrt(max(0, self.radius * self.radius - i * i)))
+                    pygame.draw.line(
+                        screen, PLATFORM_LINE, (self.x + i, self.y - h), (self.x + i, self.y + h), 2
+                    )
+        else:
+            max_r = int(max(self.rx, self.ry)) + 10
+            surf = pygame.Surface((max_r * 2, max_r * 2), pygame.SRCALPHA)
+            cx = cy = max_r
+            rect = pygame.Rect(cx - self.rx, cy - self.ry, self.rx * 2, self.ry * 2)
+            pygame.draw.ellipse(surf, PLATFORM_COLOR, rect)
+            pygame.draw.ellipse(surf, PLATFORM_TOP, rect, 3)
+            for i in range(-self.rx + TILE_SIZE // 2, self.rx, TILE_SIZE):
+                if abs(i) < self.rx:
+                    h = int(self.ry * math.sqrt(max(0, 1 - (i / self.rx)**2)))
+                    pygame.draw.line(surf, PLATFORM_LINE, (cx + i, cy - h), (cx + i, cy + h), 2)
+            rotated = pygame.transform.rotate(surf, -math.degrees(self.angle))
+            rect = rotated.get_rect(center=(self.x, self.y))
+            screen.blit(rotated, rect)
 
 
 class Player:
@@ -135,30 +179,63 @@ class Player:
         self.spawn_pos = (x, y)
         self.ground_nx = 0
         self.ground_ny = -1
+        self.gravity_nx = 0
+        self.gravity_ny = 0
 
     def update(self, keys, platforms):
         if not self.alive:
             return
 
         ctrl = self.controls
-        if keys[ctrl["left"]]:
-            self.vx = -MOVE_SPEED
-            self.facing = -1
-        elif keys[ctrl["right"]]:
-            self.vx = MOVE_SPEED
-            self.facing = 1
-        else:
-            self.vx *= 0.8
 
-        if keys[ctrl["up"]] and self.on_ground:
-            self.vx = self.ground_nx * JUMP_FORCE
-            self.vy = self.ground_ny * JUMP_FORCE
-            self.on_ground = False
+        if self.on_ground:
+            tx = -self.ground_ny
+            ty = self.ground_nx
+
+            if keys[ctrl["left"]]:
+                self.vx = -tx * MOVE_SPEED
+                self.vy = -ty * MOVE_SPEED
+                self.facing = -1
+            elif keys[ctrl["right"]]:
+                self.vx = tx * MOVE_SPEED
+                self.vy = ty * MOVE_SPEED
+                self.facing = 1
+            else:
+                self.vx *= 0.8
+                self.vy *= 0.8
+
+            if keys[ctrl["up"]]:
+                self.vx = self.ground_nx * JUMP_FORCE
+                self.vy = self.ground_ny * JUMP_FORCE
+                self.on_ground = False
+        else:
+            if keys[ctrl["left"]]:
+                self.vx = -MOVE_SPEED
+                self.facing = -1
+            elif keys[ctrl["right"]]:
+                self.vx = MOVE_SPEED
+                self.facing = 1
+            else:
+                self.vx *= 0.8
 
         in_gravity_field = False
+        self.gravity_nx = 0
+        self.gravity_ny = 0
+        max_gravity_force = 0
         for plat in platforms:
-            if plat.apply_gravity(self):
+            dx = self.rect.centerx - plat.x
+            dy = self.rect.centery - plat.y
+            dist = math.sqrt(dx * dx + dy * dy)
+            if 0 < dist < plat.gravity_range:
                 in_gravity_field = True
+                force = plat.gravity_strength * (1 - dist / plat.gravity_range)
+                if force > max_gravity_force:
+                    max_gravity_force = force
+                    self.gravity_nx = -dx / dist
+                    self.gravity_ny = -dy / dist
+                if not self.on_ground:
+                    self.vx -= force * dx / dist
+                    self.vy -= force * dy / dist
 
         if not in_gravity_field:
             self.vy += GRAVITY
@@ -183,9 +260,15 @@ class Player:
         if now - self.last_shot < ARROW_COOLDOWN:
             return None
         self.last_shot = now
-        arrow_x = self.rect.x + self.rect.w // 2 + self.facing * 12
-        arrow_y = self.rect.y + self.rect.h // 2 - 2
-        return Arrow(arrow_x, arrow_y, ARROW_SPEED * self.facing, self)
+        if self.on_ground:
+            tx = -self.ground_ny * self.facing
+            ty = self.ground_nx * self.facing
+        else:
+            tx = self.facing
+            ty = 0
+        arrow_x = self.rect.centerx + tx * 12
+        arrow_y = self.rect.centery + ty * 12
+        return Arrow(arrow_x, arrow_y, ARROW_SPEED * tx, ARROW_SPEED * ty, self)
 
     def die(self):
         if not self.alive:
@@ -212,33 +295,63 @@ class Player:
     def draw(self):
         if not self.alive:
             return
-        pygame.draw.rect(screen, self.color, self.rect)
-        eye_x = self.rect.x + 14 if self.facing > 0 else self.rect.x + 4
-        pygame.draw.rect(screen, BLACK, (eye_x, self.rect.y + 6, 6, 6))
-        pygame.draw.rect(screen, WHITE, (eye_x + 2, self.rect.y + 8, 2, 2))
-        s = pygame.Surface((8, 4), pygame.SRCALPHA)
-        s.fill((*self.color, 178))
-        screen.blit(s, (self.rect.x + 4, self.rect.y - 4))
-        s2 = pygame.Surface((6, 6), pygame.SRCALPHA)
-        s2.fill((*self.color, 178))
-        screen.blit(s2, (self.rect.x + 12, self.rect.y - 6))
+
+        if self.on_ground:
+            tx = -self.ground_nx
+            ty = -self.ground_ny
+        elif self.gravity_nx != 0 or self.gravity_ny != 0:
+            tx = self.gravity_nx
+            ty = self.gravity_ny
+        else:
+            tx = 0
+            ty = 0
+
+        if tx != 0 or ty != 0:
+            surf_size = 40
+            surf = pygame.Surface((surf_size, surf_size), pygame.SRCALPHA)
+            body_off = (surf_size - 24) // 2
+            pygame.draw.rect(surf, self.color, (body_off, body_off, 24, 24))
+            eye_x = body_off + (14 if self.facing > 0 else 4)
+            pygame.draw.rect(surf, BLACK, (eye_x, body_off + 6, 6, 6))
+            pygame.draw.rect(surf, WHITE, (eye_x + 2, body_off + 8, 2, 2))
+            s = pygame.Surface((8, 4), pygame.SRCALPHA)
+            s.fill((*self.color, 178))
+            surf.blit(s, (body_off + 4, body_off - 4))
+            s2 = pygame.Surface((6, 6), pygame.SRCALPHA)
+            s2.fill((*self.color, 178))
+            surf.blit(s2, (body_off + 12, body_off - 6))
+            angle = math.degrees(math.atan2(ty, tx) - math.pi / 2)
+            surf = pygame.transform.rotate(surf, angle)
+            rect = surf.get_rect(center=self.rect.center)
+            screen.blit(surf, rect)
+        else:
+            pygame.draw.rect(screen, self.color, self.rect)
+            eye_x = self.rect.x + 14 if self.facing > 0 else self.rect.x + 4
+            pygame.draw.rect(screen, BLACK, (eye_x, self.rect.y + 6, 6, 6))
+            pygame.draw.rect(screen, WHITE, (eye_x + 2, self.rect.y + 8, 2, 2))
+            s = pygame.Surface((8, 4), pygame.SRCALPHA)
+            s.fill((*self.color, 178))
+            screen.blit(s, (self.rect.x + 4, self.rect.y - 4))
+            s2 = pygame.Surface((6, 6), pygame.SRCALPHA)
+            s2.fill((*self.color, 178))
+            screen.blit(s2, (self.rect.x + 12, self.rect.y - 6))
 
 
 class Arrow:
-    def __init__(self, x, y, vx, owner):
+    def __init__(self, x, y, vx, vy, owner):
         self.rect = pygame.Rect(x, y, 16, 4)
         self.vx = vx
+        self.vy = vy
         self.owner = owner
 
     def update(self, platforms, players):
         self.rect.x += self.vx
+        self.rect.y += self.vy
         hit = False
         for plat in platforms:
             cx = max(self.rect.left, min(plat.x, self.rect.right))
             cy = max(self.rect.top, min(plat.y, self.rect.bottom))
-            dx = cx - plat.x
-            dy = cy - plat.y
-            if dx * dx + dy * dy < plat.radius * plat.radius:
+            if plat.point_inside(cx, cy):
                 hit = True
                 break
         if not hit:
@@ -257,9 +370,13 @@ class Arrow:
         return None
 
     def draw(self):
-        pygame.draw.rect(screen, ARROW_SHAFT, self.rect)
-        head_x = self.rect.x + self.rect.w - 4 if self.vx > 0 else self.rect.x
-        pygame.draw.rect(screen, ARROW_HEAD, (head_x, self.rect.y - 2, 4, 8))
+        surf = pygame.Surface((20, 12), pygame.SRCALPHA)
+        pygame.draw.rect(surf, ARROW_SHAFT, (2, 4, 16, 4))
+        pygame.draw.rect(surf, ARROW_HEAD, (16, 2, 4, 8))
+        angle = math.degrees(math.atan2(self.vy, self.vx))
+        surf = pygame.transform.rotate(surf, -angle)
+        rect = surf.get_rect(center=self.rect.center)
+        screen.blit(surf, rect)
 
 
 class Particle:
@@ -286,21 +403,54 @@ class Particle:
 
 
 def create_platforms():
-    return [
-        Platform(400, 450, 140),
-        Platform(180, 280, 60),
-        Platform(620, 280, 60),
-        Platform(400, 140, 60),
-        Platform(80, 490, 40),
-        Platform(720, 490, 40),
-    ]
+    platforms = []
+    margin = 120
+    min_dist = 200
+    target = random.randint(10, 16)
+    for _ in range(target * 5):
+        if len(platforms) >= target:
+            break
+        x = random.randint(margin, WIDTH - margin)
+        y = random.randint(80, HEIGHT - 80)
+        too_close = any(
+            math.sqrt((x - p.x)**2 + (y - p.y)**2) < min_dist + max(p.rx, p.ry)
+            for p in platforms
+        )
+        if too_close:
+            continue
+        if random.random() < 0.45:
+            radius = random.randint(28, 55)
+            platforms.append(Platform(x, y, 'circle', radius))
+        else:
+            rx = random.randint(50, 100)
+            ry = random.randint(28, 55)
+            angle = random.uniform(0, math.pi)
+            platforms.append(Platform(x, y, 'ellipse', rx, ry, angle))
+    if len(platforms) < 4:
+        for x, y in [(WIDTH//3, HEIGHT//3), (2*WIDTH//3, HEIGHT//3),
+                      (WIDTH//2, 2*HEIGHT//3)]:
+            platforms.append(Platform(x, y, 'circle', 45))
+    return platforms
 
 
-def init_players():
+def init_players(platforms):
+    def spawn_top(plat):
+        angle = -math.pi / 2
+        r = plat.get_boundary_radius(angle)
+        cx = plat.x + math.cos(angle) * (r + 18)
+        cy = plat.y + math.sin(angle) * (r + 18)
+        return cx - 12, cy - 12
+
+    by_x = sorted(platforms, key=lambda p: p.x)
+    idx1 = max(0, len(by_x) // 4 - 1)
+    idx2 = min(len(by_x) - 1, 3 * len(by_x) // 4)
+    p1_x, p1_y = spawn_top(by_x[idx1])
+    p2_x, p2_y = spawn_top(by_x[idx2])
+
     return [
         Player(
-            250,
-            300,
+            p1_x,
+            p1_y,
             (255, 107, 107),
             {
                 "left": pygame.K_a,
@@ -311,8 +461,8 @@ def init_players():
             "P1",
         ),
         Player(
-            500,
-            300,
+            p2_x,
+            p2_y,
             (78, 205, 196),
             {
                 "left": pygame.K_LEFT,
@@ -356,7 +506,7 @@ def main():
     prompt_surf = small_font.render("Press any key to continue", True, WHITE)
 
     platforms = create_platforms()
-    players = init_players()
+    players = init_players(platforms)
     arrows = []
     particles = []
 
@@ -387,7 +537,7 @@ def main():
             if event.type == pygame.KEYDOWN and event.key == pygame.K_r:
                 round_num = 1
                 platforms = create_platforms()
-                players = init_players()
+                players = init_players(platforms)
                 arrows.clear()
                 particles.clear()
                 water_level = HEIGHT + 50
@@ -398,7 +548,7 @@ def main():
             if event.type == pygame.KEYDOWN and round_ended:
                 round_num += 1
                 platforms = create_platforms()
-                players = init_players()
+                players = init_players(platforms)
                 arrows.clear()
                 particles.clear()
                 water_level = HEIGHT + 50
