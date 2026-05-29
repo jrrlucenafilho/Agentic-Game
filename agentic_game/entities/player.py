@@ -214,9 +214,9 @@ class Player:
 
     def get_aim_vector(self):
         tx, ty = self.get_forward_vector()
-        angle = math.radians(self.charge_angle)
-        c, s = math.cos(angle), math.sin(angle)
-        return tx * c - ty * s, tx * s + ty * c
+        fwd_angle = math.atan2(ty, tx)
+        angle = fwd_angle + math.radians(self.charge_angle)
+        return math.cos(angle), math.sin(angle)
 
     def shoot(self):
         now = pygame.time.get_ticks()

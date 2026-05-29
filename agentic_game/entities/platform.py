@@ -2,7 +2,12 @@ import math
 
 import pygame
 
-from ..config import TILE_SIZE, PLATFORM_COLOR, PLATFORM_TOP, PLATFORM_LINE
+
+ASTEROID_BODY = (70, 75, 80)
+ASTEROID_EDGE = (92, 96, 100)
+ASTEROID_SHADOW = (24, 26, 28)
+ASTEROID_CRATER = (18, 20, 22)
+ASTEROID_HIGHLIGHT = (110, 115, 120)
 
 
 class Platform:
@@ -19,6 +24,13 @@ class Platform:
             self.radius = max(rx, ry)
         self.gravity_strength = 0.6
         self.gravity_range = self.radius * 3
+        self._seed = int(x * 1009 + y * 7) & 0x7FFFFFFF
+
+    def _noise(self, *args):
+        h = self._seed
+        for a in args:
+            h = (h * 1000003 + a) & 0x7FFFFFFF
+        return h % 10000
 
     def get_boundary_radius(self, world_angle):
         if self.shape == "circle":
@@ -95,46 +107,100 @@ class Platform:
                 player.on_wall = 1 if nx > 0 else -1
 
     def draw(self, screen):
-        pygame.draw.circle(
-            screen, (50, 55, 90), (int(self.x), int(self.y)), int(self.gravity_range), 2
-        )
+        s = pygame.Surface((int(self.gravity_range) * 2, int(self.gravity_range) * 2), pygame.SRCALPHA)
+        pygame.draw.circle(s, (200, 205, 215, 60), (int(self.gravity_range), int(self.gravity_range)), int(self.gravity_range), 1)
+        screen.blit(s, (int(self.x - self.gravity_range), int(self.y - self.gravity_range)))
         if self.shape == "circle":
-            for ring in range(1, 4):
-                r = int(self.radius * (1 + ring * 0.5))
-                if r <= self.gravity_range:
-                    alpha = max(0, 60 - ring * 15)
-                    s = pygame.Surface((r * 2, r * 2), pygame.SRCALPHA)
-                    pygame.draw.circle(s, (*PLATFORM_TOP[:3], alpha), (r, r), r, 1)
-                    screen.blit(s, (self.x - r, self.y - r))
-            pygame.draw.circle(
-                screen, PLATFORM_COLOR, (int(self.x), int(self.y)), self.radius
-            )
-            pygame.draw.circle(
-                screen, PLATFORM_TOP, (int(self.x), int(self.y)), self.radius, 3
-            )
-            for i in range(-self.radius + TILE_SIZE // 2, self.radius, TILE_SIZE):
-                if abs(i) < self.radius:
-                    h = int(math.sqrt(max(0, self.radius * self.radius - i * i)))
-                    pygame.draw.line(
-                        screen,
-                        PLATFORM_LINE,
-                        (self.x + i, self.y - h),
-                        (self.x + i, self.y + h),
-                        2,
-                    )
+            self._draw_circle_asteroid(screen)
         else:
-            max_r = int(max(self.rx, self.ry)) + 10
-            surf = pygame.Surface((max_r * 2, max_r * 2), pygame.SRCALPHA)
-            cx = cy = max_r
-            rect = pygame.Rect(cx - self.rx, cy - self.ry, self.rx * 2, self.ry * 2)
-            pygame.draw.ellipse(surf, PLATFORM_COLOR, rect)
-            pygame.draw.ellipse(surf, PLATFORM_TOP, rect, 3)
-            for i in range(-self.rx + TILE_SIZE // 2, self.rx, TILE_SIZE):
-                if abs(i) < self.rx:
-                    h = int(self.ry * math.sqrt(max(0, 1 - (i / self.rx) ** 2)))
-                    pygame.draw.line(
-                        surf, PLATFORM_LINE, (cx + i, cy - h), (cx + i, cy + h), 2
-                    )
-            rotated = pygame.transform.rotate(surf, -math.degrees(self.angle))
-            rect = rotated.get_rect(center=(self.x, self.y))
-            screen.blit(rotated, rect)
+            self._draw_ellipse_asteroid(screen)
+
+    def _draw_circle_asteroid(self, screen):
+        r = self.radius
+        cx, cy = int(self.x), int(self.y)
+        n = self._noise
+
+        pygame.draw.circle(screen, ASTEROID_BODY, (cx, cy), r)
+
+        # Rocky edge bumps
+        for a in range(0, 360, 12):
+            angle = math.radians(a + n(a) % 8 - 4)
+            vr = r * (0.88 + (n(a, 1) % 200) / 2000)
+            bx = cx + math.cos(angle) * vr
+            by = cy + math.sin(angle) * vr
+            sz = max(2, r // 10)
+            dv = n(a, 3) % 18
+            c = (ASTEROID_BODY[0] - dv, ASTEROID_BODY[1] - dv // 2, ASTEROID_BODY[2] - dv // 2)
+            pygame.draw.circle(screen, c, (int(bx), int(by)), sz)
+
+        # Craters (pixel-art holes in the texture)
+        pixel = 4
+        for i in range(2 + n(0) % 3):
+            a = math.radians(n(i, 0) % 360)
+            d = r * (0.2 + (n(i, 1) % 100) / 250)
+            cr = max(3, int(r * (0.12 + (n(i, 2) % 100) / 600)))
+            crx = cx + math.cos(a) * d
+            cry = cy + math.sin(a) * d
+            cpx = (int(crx) // pixel) * pixel + pixel // 2
+            cpy = (int(cry) // pixel) * pixel + pixel // 2
+            rim_in = cr - 3
+            rim_out = cr + 1
+            for by in range(cpy - cr - pixel, cpy + cr + pixel, pixel):
+                for bx in range(cpx - cr - pixel, cpx + cr + pixel, pixel):
+                    dx = bx + pixel // 2 - cpx
+                    dy = by + pixel // 2 - cpy
+                    dist_sq = dx * dx + dy * dy
+                    if dist_sq < rim_in * rim_in:
+                        screen.fill(ASTEROID_CRATER, (bx, by, pixel, pixel))
+                    elif dist_sq < rim_out * rim_out:
+                        screen.fill(ASTEROID_EDGE, (bx, by, pixel, pixel))
+
+    def _draw_ellipse_asteroid(self, screen):
+        max_r = int(max(self.rx, self.ry)) + 20
+        surf = pygame.Surface((max_r * 2, max_r * 2))
+        surf.fill((0, 0, 0))
+        surf.set_colorkey((0, 0, 0))
+        lcx = lcy = max_r
+        n = self._noise
+        rect = pygame.Rect(lcx - self.rx, lcy - self.ry, self.rx * 2, self.ry * 2)
+
+        pygame.draw.ellipse(surf, ASTEROID_BODY, rect)
+
+        # Edge bumps in local space
+        for a in range(0, 360, 15):
+            local_a = math.radians(a)
+            world_a = local_a + self.angle
+            br = self.get_boundary_radius(world_a)
+            vr = br * (0.85 + (n(a, 7) % 250) / 2000)
+            bx = lcx + math.cos(local_a) * vr
+            by = lcy + math.sin(local_a) * vr
+            sz = max(2, int(br // 8))
+            dv = n(a, 9) % 18
+            c = (ASTEROID_BODY[0] - dv, ASTEROID_BODY[1] - dv // 2, ASTEROID_BODY[2] - dv // 2)
+            pygame.draw.circle(surf, c, (int(bx), int(by)), sz)
+
+        # Craters (pixel-art holes in the texture)
+        pixel = 4
+        for i in range(1 + n(1) % 3):
+            a = math.radians(n(i, 3) % 360)
+            d = n(i, 4) % 100 / 100
+            crx = lcx + math.cos(a) * self.rx * d * 0.7
+            cry = lcy + math.sin(a) * self.ry * d * 0.7
+            cr = max(3, int(min(self.rx, self.ry) * (0.12 + (n(i, 5) % 100) / 600)))
+            cpx = (int(crx) // pixel) * pixel + pixel // 2
+            cpy = (int(cry) // pixel) * pixel + pixel // 2
+            rim_in = cr - 3
+            rim_out = cr + 1
+            for by in range(cpy - cr - pixel, cpy + cr + pixel, pixel):
+                for bx in range(cpx - cr - pixel, cpx + cr + pixel, pixel):
+                    dx = bx + pixel // 2 - cpx
+                    dy = by + pixel // 2 - cpy
+                    dist_sq = dx * dx + dy * dy
+                    if dist_sq < rim_in * rim_in:
+                        surf.fill(ASTEROID_CRATER, (bx, by, pixel, pixel))
+                    elif dist_sq < rim_out * rim_out:
+                        surf.fill(ASTEROID_EDGE, (bx, by, pixel, pixel))
+
+        rotated = pygame.transform.rotate(surf, -math.degrees(self.angle))
+        rect = rotated.get_rect(center=(self.x, self.y))
+        screen.blit(rotated, rect)
