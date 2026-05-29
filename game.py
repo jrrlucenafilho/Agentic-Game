@@ -440,8 +440,12 @@ class Meteor:
         pygame.draw.circle(glow, (255, 180, 50, 60), (g, g), g)
         screen.blit(glow, (self.x - g, self.y - g))
 
-        pygame.draw.circle(screen, (180, 100, 50), (int(self.x), int(self.y)), self.size)
-        pygame.draw.circle(screen, (240, 180, 80), (int(self.x), int(self.y)), self.size - 3)
+        pygame.draw.circle(
+            screen, (180, 100, 50), (int(self.x), int(self.y)), self.size
+        )
+        pygame.draw.circle(
+            screen, (240, 180, 80), (int(self.x), int(self.y)), self.size - 3
+        )
 
         tail = min(self.size * 3, int(self.vy * 4))
         for i in range(tail):
@@ -555,6 +559,7 @@ def init_players(platforms):
 star_positions = []
 saturn_surf = None
 
+
 def generate_background():
     global star_positions, saturn_surf
     star_positions = []
@@ -587,6 +592,7 @@ def generate_background():
     saturn_surf = pygame.transform.scale(surf, (pw * 4, ph * 4))
     saturn_surf.set_alpha(50)
 
+
 def draw_background():
     screen.fill(BG_COLOR)
     for x, y, size, bright in star_positions:
@@ -612,6 +618,9 @@ def main():
     message_timer = 0
     message_surf = None
     prompt_surf = small_font.render("Press any key to continue", True, WHITE)
+
+    p1_score = 0
+    p2_score = 0
 
     generate_background()
     platforms = create_platforms()
@@ -646,6 +655,8 @@ def main():
                 running = False
             if event.type == pygame.KEYDOWN and event.key == pygame.K_r:
                 round_num = 1
+                p1_score = 0
+                p2_score = 0
                 platforms = create_platforms()
                 players = init_players(platforms)
                 arrows.clear()
@@ -715,13 +726,20 @@ def main():
                 arrows.pop(i)
             elif isinstance(result, Player):
                 particles.extend(result.die())
+                if arrows[i].owner == players[0]:
+                    p1_score += 1
+                else:
+                    p2_score += 1
                 arrows.pop(i)
                 check_round_end()
 
         particles = [p for p in particles if p.update()]
 
         round_timer += 1
-        if round_timer > METEOR_START and round_timer % max(60, 120 - (round_timer - METEOR_START) // 30) == 0:
+        if (
+            round_timer > METEOR_START
+            and round_timer % max(60, 120 - (round_timer - METEOR_START) // 30) == 0
+        ):
             meteors.append(Meteor())
 
         for i in range(len(meteors) - 1, -1, -1):
@@ -750,10 +768,14 @@ def main():
             screen.blit(message_surf, text_rect)
 
         p1_status = font.render(
-            f"P1: {'ALIVE' if players[0].alive else 'DEAD'}", True, WHITE
+            f"P1: {'ALIVE' if players[0].alive else 'DEAD'}  Score: {p1_score}",
+            True,
+            WHITE,
         )
         p2_status = font.render(
-            f"P2: {'ALIVE' if players[1].alive else 'DEAD'}", True, WHITE
+            f"Score: {p2_score}  P2: {'ALIVE' if players[1].alive else 'DEAD'}",
+            True,
+            WHITE,
         )
         round_text = font.render(f"Round {round_num}", True, WHITE)
         controls_text = font.render(
