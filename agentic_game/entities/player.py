@@ -98,7 +98,19 @@ class Player:
                     self.vx *= 0.8
                     self.vy *= 0.8
 
-                if keys[ctrl["up"]]:
+                if keys[ctrl["down"]] and self.ground_ny > 0.5:
+                    self.vx = self.ground_nx * JUMP_FORCE
+                    self.vy = self.ground_ny * JUMP_FORCE
+                    self.on_ground = False
+                elif keys[ctrl["up"]] and self.ground_ny < -0.5:
+                    self.vx = self.ground_nx * JUMP_FORCE
+                    self.vy = self.ground_ny * JUMP_FORCE
+                    self.on_ground = False
+                elif keys[ctrl["right"]] and self.ground_nx > 0.5:
+                    self.vx = self.ground_nx * JUMP_FORCE
+                    self.vy = self.ground_ny * JUMP_FORCE
+                    self.on_ground = False
+                elif keys[ctrl["left"]] and self.ground_nx < -0.5:
                     self.vx = self.ground_nx * JUMP_FORCE
                     self.vy = self.ground_ny * JUMP_FORCE
                     self.on_ground = False
@@ -132,26 +144,21 @@ class Player:
             if not self.charging:
                 in_field = self.gravity_nx != 0 or self.gravity_ny != 0
                 if in_field:
-                    tx = self.gravity_ny
-                    ty = -self.gravity_nx
                     if keys[ctrl["left"]]:
-                        self.vx = -tx * MOVE_SPEED
-                        self.vy = -ty * MOVE_SPEED
+                        self.vx = -MOVE_SPEED
                         self.facing = -1
                     elif keys[ctrl["right"]]:
-                        self.vx = tx * MOVE_SPEED
-                        self.vy = ty * MOVE_SPEED
+                        self.vx = MOVE_SPEED
                         self.facing = 1
                     else:
                         self.vx *= 0.8
-                        self.vy *= 0.8
 
                     if keys[ctrl["up"]]:
-                        self.vx -= self.gravity_nx * MOVE_SPEED
-                        self.vy -= self.gravity_ny * MOVE_SPEED
+                        self.vy = -MOVE_SPEED
                     elif keys[ctrl["down"]]:
-                        self.vx += self.gravity_nx * MOVE_SPEED
-                        self.vy += self.gravity_ny * MOVE_SPEED
+                        self.vy = MOVE_SPEED
+                    else:
+                        self.vy *= 0.8
                 else:
                     if keys[ctrl["left"]]:
                         self.vx = -MOVE_SPEED
