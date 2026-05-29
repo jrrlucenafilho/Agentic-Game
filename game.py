@@ -10,12 +10,12 @@ WIDTH, HEIGHT = 1400, 900
 TILE_SIZE = 32
 FPS = 60
 
-GRAVITY = 0.6
-JUMP_FORCE = 12
+GRAVITY = 0.15
+JUMP_FORCE = 30
 MOVE_SPEED = 5
 ARROW_SPEED = 10
 ARROW_COOLDOWN = 500
-WATER_RISE_SPEED = 0.2
+METEOR_START = 600
 
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
 pygame.display.set_caption("Agentic Battle - Slime Arena")
@@ -26,13 +26,11 @@ small_font = pygame.font.Font(None, 28)
 
 WHITE = (255, 255, 255)
 BLACK = (0, 0, 0)
-BG_COLOR = (15, 52, 96)
+BG_COLOR = (8, 10, 30)
 BG_DARK = (22, 33, 62)
 PLATFORM_COLOR = (74, 78, 105)
 PLATFORM_TOP = (154, 140, 152)
 PLATFORM_LINE = (34, 34, 59)
-WATER_COLOR = (30, 144, 255, 153)
-WATER_TOP = (65, 105, 225, 204)
 ARROW_SHAFT = (139, 69, 19)
 ARROW_HEAD = (160, 82, 45)
 
@@ -45,38 +43,39 @@ class Platform:
         self.angle = angle
         self.rx = rx
         self.ry = ry if ry is not None else rx
-        if shape == 'circle':
+        if shape == "circle":
             self.radius = rx
         else:
             self.radius = max(rx, ry)
-        self.gravity_strength = self.radius * self.radius * 0.00015
+        self.gravity_strength = 0.6
         self.gravity_range = self.radius * 3
 
     def get_boundary_radius(self, world_angle):
-        if self.shape == 'circle':
+        if self.shape == "circle":
             return self.radius
         local_angle = world_angle - self.angle
         c = math.cos(local_angle)
         s = math.sin(local_angle)
-        return self.rx * self.ry / math.sqrt((self.ry * c)**2 + (self.rx * s)**2)
+        return self.rx * self.ry / math.sqrt((self.ry * c) ** 2 + (self.rx * s) ** 2)
 
     def point_inside(self, px, py):
         dx = px - self.x
         dy = py - self.y
-        if self.shape == 'circle':
-            return dx*dx + dy*dy <= self.radius * self.radius
+        if self.shape == "circle":
+            return dx * dx + dy * dy <= self.radius * self.radius
         c = math.cos(self.angle)
         s = math.sin(self.angle)
         lx = dx * c + dy * s
         ly = -dx * s + dy * c
-        return (lx / self.rx)**2 + (ly / self.ry)**2 <= 1
+        return (lx / self.rx) ** 2 + (ly / self.ry) ** 2 <= 1
 
     def apply_gravity(self, player):
         dx = player.rect.centerx - self.x
         dy = player.rect.centery - self.y
         dist = math.sqrt(dx * dx + dy * dy)
         if 0 < dist < self.gravity_range:
-            force = self.gravity_strength * (1 - dist / self.gravity_range)
+            t = dist / self.gravity_range
+            force = self.gravity_strength * (1 - t * t)
             player.vx -= force * dx / dist
             player.vy -= force * dy / dist
             return True
@@ -129,7 +128,7 @@ class Platform:
         pygame.draw.circle(
             screen, (50, 55, 90), (int(self.x), int(self.y)), int(self.gravity_range), 2
         )
-        if self.shape == 'circle':
+        if self.shape == "circle":
             for ring in range(1, 4):
                 r = int(self.radius * (1 + ring * 0.5))
                 if r <= self.gravity_range:
@@ -137,7 +136,9 @@ class Platform:
                     s = pygame.Surface((r * 2, r * 2), pygame.SRCALPHA)
                     pygame.draw.circle(s, (*PLATFORM_TOP[:3], alpha), (r, r), r, 1)
                     screen.blit(s, (self.x - r, self.y - r))
-            pygame.draw.circle(screen, PLATFORM_COLOR, (int(self.x), int(self.y)), self.radius)
+            pygame.draw.circle(
+                screen, PLATFORM_COLOR, (int(self.x), int(self.y)), self.radius
+            )
             pygame.draw.circle(
                 screen, PLATFORM_TOP, (int(self.x), int(self.y)), self.radius, 3
             )
@@ -145,7 +146,11 @@ class Platform:
                 if abs(i) < self.radius:
                     h = int(math.sqrt(max(0, self.radius * self.radius - i * i)))
                     pygame.draw.line(
-                        screen, PLATFORM_LINE, (self.x + i, self.y - h), (self.x + i, self.y + h), 2
+                        screen,
+                        PLATFORM_LINE,
+                        (self.x + i, self.y - h),
+                        (self.x + i, self.y + h),
+                        2,
                     )
         else:
             max_r = int(max(self.rx, self.ry)) + 10
@@ -156,8 +161,10 @@ class Platform:
             pygame.draw.ellipse(surf, PLATFORM_TOP, rect, 3)
             for i in range(-self.rx + TILE_SIZE // 2, self.rx, TILE_SIZE):
                 if abs(i) < self.rx:
-                    h = int(self.ry * math.sqrt(max(0, 1 - (i / self.rx)**2)))
-                    pygame.draw.line(surf, PLATFORM_LINE, (cx + i, cy - h), (cx + i, cy + h), 2)
+                    h = int(self.ry * math.sqrt(max(0, 1 - (i / self.rx) ** 2)))
+                    pygame.draw.line(
+                        surf, PLATFORM_LINE, (cx + i, cy - h), (cx + i, cy + h), 2
+                    )
             rotated = pygame.transform.rotate(surf, -math.degrees(self.angle))
             rect = rotated.get_rect(center=(self.x, self.y))
             screen.blit(rotated, rect)
@@ -165,7 +172,7 @@ class Platform:
 
 class Player:
     def __init__(self, x, y, color, controls, name):
-        self.rect = pygame.Rect(x, y, 24, 24)
+        self.rect = pygame.Rect(x, y, 28, 28)
         self.vx = 0
         self.vy = 0
         self.color = color
@@ -209,14 +216,29 @@ class Player:
                 self.vy = self.ground_ny * JUMP_FORCE
                 self.on_ground = False
         else:
-            if keys[ctrl["left"]]:
-                self.vx = -MOVE_SPEED
-                self.facing = -1
-            elif keys[ctrl["right"]]:
-                self.vx = MOVE_SPEED
-                self.facing = 1
+            in_field = self.gravity_nx != 0 or self.gravity_ny != 0
+            if in_field:
+                tx = self.gravity_ny
+                ty = -self.gravity_nx
+                if keys[ctrl["left"]]:
+                    self.vx = -tx * MOVE_SPEED
+                    self.vy = -ty * MOVE_SPEED
+                    self.facing = -1
+                elif keys[ctrl["right"]]:
+                    self.vx = tx * MOVE_SPEED
+                    self.vy = ty * MOVE_SPEED
+                    self.facing = 1
+                else:
+                    self.vx *= 0.8
+                    self.vy *= 0.8
             else:
-                self.vx *= 0.8
+                if keys[ctrl["left"]]:
+                    self.vx = -MOVE_SPEED
+                    self.facing = -1
+                elif keys[ctrl["right"]]:
+                    self.vx = MOVE_SPEED
+                    self.facing = 1
+            self.vy += GRAVITY
 
         in_gravity_field = False
         self.gravity_nx = 0
@@ -228,17 +250,15 @@ class Player:
             dist = math.sqrt(dx * dx + dy * dy)
             if 0 < dist < plat.gravity_range:
                 in_gravity_field = True
-                force = plat.gravity_strength * (1 - dist / plat.gravity_range)
-                if force > max_gravity_force:
+                t = dist / plat.gravity_range
+                force = plat.gravity_strength * (1 - t * t)
+                if force > max_gravity_force and force >= 0.05:
                     max_gravity_force = force
                     self.gravity_nx = -dx / dist
                     self.gravity_ny = -dy / dist
                 if not self.on_ground:
                     self.vx -= force * dx / dist
                     self.vy -= force * dy / dist
-
-        if not in_gravity_field:
-            self.vy += GRAVITY
 
         self.on_ground = False
         self.on_wall = 0
@@ -248,11 +268,7 @@ class Player:
         for plat in platforms:
             plat.collide_player(self)
 
-        if (
-            self.rect.y > water_level
-            or self.rect.x < 0
-            or self.rect.x + self.rect.w > WIDTH
-        ):
+        if self.rect.y > HEIGHT + 100:
             self.die()
 
     def shoot(self):
@@ -309,32 +325,37 @@ class Player:
         if tx != 0 or ty != 0:
             surf_size = 40
             surf = pygame.Surface((surf_size, surf_size), pygame.SRCALPHA)
-            body_off = (surf_size - 24) // 2
-            pygame.draw.rect(surf, self.color, (body_off, body_off, 24, 24))
-            eye_x = body_off + (14 if self.facing > 0 else 4)
-            pygame.draw.rect(surf, BLACK, (eye_x, body_off + 6, 6, 6))
-            pygame.draw.rect(surf, WHITE, (eye_x + 2, body_off + 8, 2, 2))
+            center = surf_size // 2
+            pygame.draw.circle(surf, self.color, (center, center), 14)
+            eye_x = center + (5 if self.facing > 0 else -5)
+            pygame.draw.circle(surf, BLACK, (eye_x, center - 2), 4)
+            pygame.draw.circle(
+                surf, WHITE, (eye_x + (1 if self.facing > 0 else -1), center - 1), 2
+            )
             s = pygame.Surface((8, 4), pygame.SRCALPHA)
-            s.fill((*self.color, 178))
-            surf.blit(s, (body_off + 4, body_off - 4))
+            s.fill((*self.color, 220))
+            surf.blit(s, (center - 10, center - 18))
             s2 = pygame.Surface((6, 6), pygame.SRCALPHA)
-            s2.fill((*self.color, 178))
-            surf.blit(s2, (body_off + 12, body_off - 6))
+            s2.fill((*self.color, 220))
+            surf.blit(s2, (center - 2, center - 20))
             angle = math.degrees(math.atan2(ty, tx) - math.pi / 2)
             surf = pygame.transform.rotate(surf, angle)
             rect = surf.get_rect(center=self.rect.center)
             screen.blit(surf, rect)
         else:
-            pygame.draw.rect(screen, self.color, self.rect)
-            eye_x = self.rect.x + 14 if self.facing > 0 else self.rect.x + 4
-            pygame.draw.rect(screen, BLACK, (eye_x, self.rect.y + 6, 6, 6))
-            pygame.draw.rect(screen, WHITE, (eye_x + 2, self.rect.y + 8, 2, 2))
+            cx, cy = self.rect.centerx, self.rect.centery
+            pygame.draw.circle(screen, self.color, (cx, cy), 14)
+            eye_x = cx + (5 if self.facing > 0 else -5)
+            pygame.draw.circle(screen, BLACK, (eye_x, cy - 2), 4)
+            pygame.draw.circle(
+                screen, WHITE, (eye_x + (1 if self.facing > 0 else -1), cy - 1), 2
+            )
             s = pygame.Surface((8, 4), pygame.SRCALPHA)
-            s.fill((*self.color, 178))
-            screen.blit(s, (self.rect.x + 4, self.rect.y - 4))
+            s.fill((*self.color, 220))
+            screen.blit(s, (cx - 10, cy - 18))
             s2 = pygame.Surface((6, 6), pygame.SRCALPHA)
-            s2.fill((*self.color, 178))
-            screen.blit(s2, (self.rect.x + 12, self.rect.y - 6))
+            s2.fill((*self.color, 220))
+            screen.blit(s2, (cx - 2, cy - 20))
 
 
 class Arrow:
@@ -379,6 +400,59 @@ class Arrow:
         screen.blit(surf, rect)
 
 
+class Meteor:
+    def __init__(self):
+        self.x = random.randint(0, WIDTH)
+        self.y = random.randint(-100, -30)
+        self.vx = random.uniform(-2, 2)
+        self.vy = random.uniform(3, 8)
+        self.size = random.randint(6, 16)
+
+    def update(self, platforms, players):
+        self.x += self.vx
+        self.y += self.vy
+        self.vy += 0.12
+
+        for plat in platforms:
+            if plat.point_inside(self.x, self.y):
+                parts = []
+                for _ in range(15):
+                    parts.append(Particle(self.x, self.y, (255, 140, 40)))
+                return parts
+
+        for player in players:
+            if player.alive and player.rect.collidepoint(self.x, self.y):
+                result = player.die()
+                parts = []
+                for _ in range(15):
+                    parts.append(Particle(self.x, self.y, (255, 140, 40)))
+                if result:
+                    parts.extend(result)
+                return parts
+
+        if self.y > HEIGHT + 100:
+            return "miss"
+        return None
+
+    def draw(self):
+        g = self.size + 6
+        glow = pygame.Surface((g * 2, g * 2), pygame.SRCALPHA)
+        pygame.draw.circle(glow, (255, 180, 50, 60), (g, g), g)
+        screen.blit(glow, (self.x - g, self.y - g))
+
+        pygame.draw.circle(screen, (180, 100, 50), (int(self.x), int(self.y)), self.size)
+        pygame.draw.circle(screen, (240, 180, 80), (int(self.x), int(self.y)), self.size - 3)
+
+        tail = min(self.size * 3, int(self.vy * 4))
+        for i in range(tail):
+            a = int(120 * (1 - i / tail))
+            tx = self.x - self.vx / max(abs(self.vy), 0.5) * i * 1.2
+            ty = self.y - self.vy / max(abs(self.vy), 0.5) * i * 1.2
+            s = pygame.Surface((4, 4), pygame.SRCALPHA)
+            s.fill((255, max(0, 200 - i * 6), 40, a))
+            screen.blit(s, (tx - 2, ty - 2))
+
+
 class Particle:
     def __init__(self, x, y, color):
         self.x = x
@@ -413,23 +487,26 @@ def create_platforms():
         x = random.randint(margin, WIDTH - margin)
         y = random.randint(80, HEIGHT - 80)
         too_close = any(
-            math.sqrt((x - p.x)**2 + (y - p.y)**2) < min_dist + max(p.rx, p.ry)
+            math.sqrt((x - p.x) ** 2 + (y - p.y) ** 2) < min_dist + max(p.rx, p.ry)
             for p in platforms
         )
         if too_close:
             continue
         if random.random() < 0.45:
             radius = random.randint(28, 55)
-            platforms.append(Platform(x, y, 'circle', radius))
+            platforms.append(Platform(x, y, "circle", radius))
         else:
             rx = random.randint(50, 100)
             ry = random.randint(28, 55)
             angle = random.uniform(0, math.pi)
-            platforms.append(Platform(x, y, 'ellipse', rx, ry, angle))
+            platforms.append(Platform(x, y, "ellipse", rx, ry, angle))
     if len(platforms) < 4:
-        for x, y in [(WIDTH//3, HEIGHT//3), (2*WIDTH//3, HEIGHT//3),
-                      (WIDTH//2, 2*HEIGHT//3)]:
-            platforms.append(Platform(x, y, 'circle', 45))
+        for x, y in [
+            (WIDTH // 3, HEIGHT // 3),
+            (2 * WIDTH // 3, HEIGHT // 3),
+            (WIDTH // 2, 2 * HEIGHT // 3),
+        ]:
+            platforms.append(Platform(x, y, "circle", 45))
     return platforms
 
 
@@ -475,29 +552,60 @@ def init_players(platforms):
     ]
 
 
+star_positions = []
+saturn_surf = None
+
+def generate_background():
+    global star_positions, saturn_surf
+    star_positions = []
+    for _ in range(250):
+        x = random.randint(0, WIDTH)
+        y = random.randint(0, HEIGHT)
+        r = random.random()
+        if r < 0.6:
+            size = 1
+        elif r < 0.85:
+            size = 2
+        else:
+            size = 3
+        bright = random.randint(80, 255)
+        star_positions.append((x, y, size, bright))
+
+    pw, ph = 32, 24
+    surf = pygame.Surface((pw, ph), pygame.SRCALPHA)
+    body_c = (220, 190, 140)
+    ring_c = (200, 180, 140, 140)
+    dark_c = (180, 150, 110)
+    cx, cy = pw // 2 - 1, ph // 2
+
+    pygame.draw.circle(surf, body_c, (cx, cy), 7)
+    pygame.draw.circle(surf, (200, 170, 120), (cx, cy), 7, 1)
+    pygame.draw.rect(surf, dark_c, (cx - 6, cy - 2, 12, 1))
+    pygame.draw.rect(surf, dark_c, (cx - 5, cy + 2, 10, 1))
+    pygame.draw.ellipse(surf, ring_c, (cx - 12, cy - 4, 24, 8), 1)
+
+    saturn_surf = pygame.transform.scale(surf, (pw * 4, ph * 4))
+    saturn_surf.set_alpha(50)
+
 def draw_background():
     screen.fill(BG_COLOR)
-    for x in range(0, WIDTH, TILE_SIZE * 2):
-        for y in range(0, HEIGHT, TILE_SIZE * 2):
-            if (x + y) % (TILE_SIZE * 4) == 0:
-                pygame.draw.rect(screen, BG_DARK, (x, y, TILE_SIZE, TILE_SIZE))
+    for x, y, size, bright in star_positions:
+        shade = (bright, bright, bright)
+        if size == 1:
+            screen.set_at((x, y), shade)
+        elif size == 2:
+            pygame.draw.rect(screen, shade, (x, y, 2, 2))
+        else:
+            pygame.draw.rect(screen, shade, (x, y, 3, 3))
 
-
-def draw_water():
-    water_height = HEIGHT - water_level
-    if water_height <= 0:
-        return
-    water_surface = pygame.Surface((WIDTH, water_height), pygame.SRCALPHA)
-    water_surface.fill(WATER_COLOR)
-    screen.blit(water_surface, (0, water_level))
-    pygame.draw.rect(screen, WATER_TOP, (0, water_level, WIDTH, 4))
+    sx = WIDTH - saturn_surf.get_width() - 60
+    sy = 60
+    screen.blit(saturn_surf, (sx, sy))
 
 
 def main():
-    global water_level, water_rising, round_timer, round_num
+    global round_timer, round_num
     round_num = 1
-    water_level = HEIGHT + 50
-    water_rising = False
     round_timer = 0
     round_ended = False
     message = ""
@@ -505,10 +613,12 @@ def main():
     message_surf = None
     prompt_surf = small_font.render("Press any key to continue", True, WHITE)
 
+    generate_background()
     platforms = create_platforms()
     players = init_players(platforms)
     arrows = []
     particles = []
+    meteors = []
 
     def show_message(text, duration):
         nonlocal message, message_timer, message_surf
@@ -540,8 +650,7 @@ def main():
                 players = init_players(platforms)
                 arrows.clear()
                 particles.clear()
-                water_level = HEIGHT + 50
-                water_rising = False
+                meteors.clear()
                 round_timer = 0
                 round_ended = False
                 show_message(f"ROUND {round_num}", 90)
@@ -551,8 +660,7 @@ def main():
                 players = init_players(platforms)
                 arrows.clear()
                 particles.clear()
-                water_level = HEIGHT + 50
-                water_rising = False
+                meteors.clear()
                 round_timer = 0
                 round_ended = False
                 show_message(f"ROUND {round_num}", 90)
@@ -565,7 +673,8 @@ def main():
             draw_background()
             for plat in platforms:
                 plat.draw()
-            draw_water()
+            for m in meteors:
+                m.draw()
             for arrow in arrows:
                 arrow.draw()
             for player in players:
@@ -612,17 +721,23 @@ def main():
         particles = [p for p in particles if p.update()]
 
         round_timer += 1
-        if round_timer > 600 and not water_rising:
-            water_rising = True
-            show_message("WATER RISING!", 60)
+        if round_timer > METEOR_START and round_timer % max(60, 120 - (round_timer - METEOR_START) // 30) == 0:
+            meteors.append(Meteor())
 
-        if water_rising:
-            water_level -= WATER_RISE_SPEED
+        for i in range(len(meteors) - 1, -1, -1):
+            result = meteors[i].update(platforms, players)
+            if result == "miss":
+                meteors.pop(i)
+            elif isinstance(result, list):
+                particles.extend(result)
+                meteors.pop(i)
+                check_round_end()
 
         draw_background()
         for plat in platforms:
             plat.draw()
-        draw_water()
+        for m in meteors:
+            m.draw()
         for arrow in arrows:
             arrow.draw()
         for player in players:
