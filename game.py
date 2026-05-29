@@ -188,12 +188,25 @@ class Player:
         self.ground_ny = -1
         self.gravity_nx = 0
         self.gravity_ny = 0
+        self.charging = False
+        self.charge_angle = 0.0
+        self.charge_dir = 1
 
     def update(self, keys, platforms):
         if not self.alive:
             return
 
         ctrl = self.controls
+
+        gravity_field_count = 0
+        for plat in platforms:
+            dx = self.rect.centerx - plat.x
+            dy = self.rect.centery - plat.y
+            dist = math.sqrt(dx * dx + dy * dy)
+            if 0 < dist < plat.gravity_range:
+                gravity_field_count += 1
+
+        in_hover = gravity_field_count >= 2 and not self.on_ground
 
         if self.on_ground:
             tx = -self.ground_ny
@@ -215,6 +228,22 @@ class Player:
                 self.vx = self.ground_nx * JUMP_FORCE
                 self.vy = self.ground_ny * JUMP_FORCE
                 self.on_ground = False
+        elif in_hover:
+            if keys[ctrl["left"]]:
+                self.vx = -MOVE_SPEED
+                self.facing = -1
+            elif keys[ctrl["right"]]:
+                self.vx = MOVE_SPEED
+                self.facing = 1
+            else:
+                self.vx *= 0.85
+
+            if keys[ctrl["up"]]:
+                self.vy = -MOVE_SPEED
+            elif keys[ctrl["down"]]:
+                self.vy = MOVE_SPEED
+            else:
+                self.vy *= 0.85
         else:
             in_field = self.gravity_nx != 0 or self.gravity_ny != 0
             if in_field:
@@ -256,7 +285,7 @@ class Player:
                     max_gravity_force = force
                     self.gravity_nx = -dx / dist
                     self.gravity_ny = -dy / dist
-                if not self.on_ground:
+                if not self.on_ground and not in_hover:
                     self.vx -= force * dx / dist
                     self.vy -= force * dy / dist
 
@@ -271,20 +300,55 @@ class Player:
         if self.rect.y > HEIGHT + 100:
             self.die()
 
-    def shoot(self):
-        now = pygame.time.get_ticks()
-        if now - self.last_shot < ARROW_COOLDOWN:
-            return None
-        self.last_shot = now
+    def get_forward_vector(self):
         if self.on_ground:
             tx = -self.ground_ny * self.facing
             ty = self.ground_nx * self.facing
         else:
             tx = self.facing
             ty = 0
+        return tx, ty
+
+    def get_aim_vector(self):
+        tx, ty = self.get_forward_vector()
+        angle = math.radians(self.charge_angle)
+        c, s = math.cos(angle), math.sin(angle)
+        return tx * c - ty * s, tx * s + ty * c
+
+    def shoot(self):
+        now = pygame.time.get_ticks()
+        if now - self.last_shot < ARROW_COOLDOWN:
+            return None
+        self.last_shot = now
+        tx, ty = self.get_aim_vector()
         arrow_x = self.rect.centerx + tx * 12
         arrow_y = self.rect.centery + ty * 12
         return Arrow(arrow_x, arrow_y, ARROW_SPEED * tx, ARROW_SPEED * ty, self)
+
+    def start_charge(self):
+        now = pygame.time.get_ticks()
+        if now - self.last_shot < ARROW_COOLDOWN:
+            return
+        self.charging = True
+        self.charge_angle = 0.0
+        self.charge_dir = 1
+
+    def update_charge(self):
+        if not self.charging:
+            return
+        self.charge_angle += self.charge_dir * 2.0
+        if self.charge_angle > 22.5:
+            self.charge_angle = 22.5
+            self.charge_dir = -1
+        elif self.charge_angle < -22.5:
+            self.charge_angle = -22.5
+            self.charge_dir = 1
+
+    def release_charge(self):
+        if not self.charging:
+            return None
+        self.charging = False
+        return self.shoot()
 
     def die(self):
         if not self.alive:
@@ -356,6 +420,26 @@ class Player:
             s2 = pygame.Surface((6, 6), pygame.SRCALPHA)
             s2.fill((*self.color, 220))
             screen.blit(s2, (cx - 2, cy - 20))
+
+        if self.charging:
+            tx, ty = self.get_forward_vector()
+            aim_x, aim_y = self.get_aim_vector()
+            cx, cy = self.rect.center
+            angle_fwd = math.atan2(ty, tx)
+            half = math.radians(22.5)
+            arc_r = 50
+            arc_rect = pygame.Rect(cx - arc_r, cy - arc_r, arc_r * 2, arc_r * 2)
+            pygame.draw.arc(
+                screen, WHITE, arc_rect, angle_fwd - half, angle_fwd + half, 2
+            )
+            for offset in (-half, half):
+                ex = cx + math.cos(angle_fwd + offset) * arc_r
+                ey = cy + math.sin(angle_fwd + offset) * arc_r
+                pygame.draw.line(screen, WHITE, (cx, cy), (ex, ey), 1)
+            line_len = 80
+            end_x = cx + aim_x * line_len
+            end_y = cy + aim_y * line_len
+            pygame.draw.line(screen, WHITE, (cx, cy), (end_x, end_y), 3)
 
 
 class Arrow:
@@ -537,6 +621,7 @@ def init_players(platforms):
                 "left": pygame.K_a,
                 "right": pygame.K_d,
                 "up": pygame.K_w,
+                "down": pygame.K_s,
                 "shoot": pygame.K_f,
             },
             "P1",
@@ -549,6 +634,7 @@ def init_players(platforms):
                 "left": pygame.K_LEFT,
                 "right": pygame.K_RIGHT,
                 "up": pygame.K_UP,
+                "down": pygame.K_DOWN,
                 "shoot": pygame.K_l,
             },
             "P2",
@@ -715,10 +801,15 @@ def main():
         check_round_end()
 
         for player in players:
-            if keys_pressed[player.controls["shoot"]]:
-                arrow = player.shoot()
+            shoot_held = keys_pressed[player.controls["shoot"]]
+            if shoot_held and not player.charging:
+                player.start_charge()
+            elif not shoot_held and player.charging:
+                arrow = player.release_charge()
                 if arrow:
                     arrows.append(arrow)
+            elif shoot_held and player.charging:
+                player.update_charge()
 
         for i in range(len(arrows) - 1, -1, -1):
             result = arrows[i].update(platforms, players)
