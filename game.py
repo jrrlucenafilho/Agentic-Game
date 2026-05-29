@@ -297,6 +297,16 @@ class Player:
         for plat in platforms:
             plat.collide_player(self)
 
+        if self.rect.left < 0:
+            self.rect.left = 0
+            self.vx = 0
+        if self.rect.right > WIDTH:
+            self.rect.right = WIDTH
+            self.vx = 0
+        if self.rect.top < 0:
+            self.rect.top = 0
+            self.vy = 0
+
         if self.rect.y > HEIGHT + 100:
             self.die()
 
@@ -402,6 +412,29 @@ class Player:
             s2 = pygame.Surface((6, 6), pygame.SRCALPHA)
             s2.fill((*self.color, 220))
             surf.blit(s2, (center - 2, center - 20))
+            bx = center - 13 * self.facing
+            pygame.draw.rect(
+                surf,
+                (
+                    max(0, self.color[0] - 60),
+                    max(0, self.color[1] - 60),
+                    max(0, self.color[2] - 60),
+                ),
+                (bx - 3, center - 5, 6, 10),
+            )
+            pygame.draw.rect(surf, (40, 40, 40), (bx - 3, center - 5, 6, 10), 1)
+            if not self.on_ground:
+                t = pygame.time.get_ticks()
+                for i in range(3):
+                    fs = max(2, 5 - i + (t + i * 70) % 6 - 3)
+                    fy = center + (i - 1) * 4
+                    fx = bx - (3 + i * 2) * self.facing
+                    s = pygame.Surface((fs * 2, fs * 2), pygame.SRCALPHA)
+                    r, g, b = (
+                        (255, 160 - i * 50, 30) if i < 2 else (255, 100 - i * 20, 5)
+                    )
+                    pygame.draw.circle(s, (r, g, b, 160 - i * 40), (fs, fs), fs)
+                    surf.blit(s, (fx - fs, fy - fs))
             angle = math.degrees(math.atan2(ty, tx) - math.pi / 2)
             surf = pygame.transform.rotate(surf, angle)
             rect = surf.get_rect(center=self.rect.center)
@@ -420,6 +453,29 @@ class Player:
             s2 = pygame.Surface((6, 6), pygame.SRCALPHA)
             s2.fill((*self.color, 220))
             screen.blit(s2, (cx - 2, cy - 20))
+            bx = cx - 13 * self.facing
+            pygame.draw.rect(
+                screen,
+                (
+                    max(0, self.color[0] - 60),
+                    max(0, self.color[1] - 60),
+                    max(0, self.color[2] - 60),
+                ),
+                (bx - 3, cy - 5, 6, 10),
+            )
+            pygame.draw.rect(screen, (40, 40, 40), (bx - 3, cy - 5, 6, 10), 1)
+            if not self.on_ground:
+                t = pygame.time.get_ticks()
+                for i in range(3):
+                    fs = max(2, 5 - i + (t + i * 70) % 6 - 3)
+                    fy = cy + (i - 1) * 4
+                    fx = bx - (3 + i * 2) * self.facing
+                    s = pygame.Surface((fs * 2, fs * 2), pygame.SRCALPHA)
+                    r, g, b = (
+                        (255, 160 - i * 50, 30) if i < 2 else (255, 100 - i * 20, 5)
+                    )
+                    pygame.draw.circle(s, (r, g, b, 160 - i * 40), (fs, fs), fs)
+                    screen.blit(s, (fx - fs, fy - fs))
 
         if self.charging:
             tx, ty = self.get_forward_vector()
