@@ -208,6 +208,32 @@ class Game:
                         swipes.pop(i)
                         break
 
+            for i in range(len(swipes) - 1, -1, -1):
+                s1 = swipes[i]
+                if s1.done:
+                    continue
+                for j in range(i - 1, -1, -1):
+                    s2 = swipes[j]
+                    if s2.done:
+                        continue
+                    dx = s2.x - s1.x
+                    dy = s2.y - s1.y
+                    dist_sq = dx * dx + dy * dy
+                    range_sum = s1.range + s2.range
+                    if dist_sq <= range_sum * range_sum:
+                        mx = (s1.x + s2.x) / 2
+                        my = (s1.y + s2.y) / 2
+                        for _ in range(25):
+                            particles.append(Particle(mx, my, WHITE))
+                        push_force = 8
+                        s1.owner.vx += -s1.owner.aim_dir[0] * push_force
+                        s1.owner.vy += -s1.owner.aim_dir[1] * push_force
+                        s2.owner.vx += -s2.owner.aim_dir[0] * push_force
+                        s2.owner.vy += -s2.owner.aim_dir[1] * push_force
+                        s1.done = True
+                        s2.done = True
+                        break
+
             for u in ufos:
                 if u.done:
                     continue
