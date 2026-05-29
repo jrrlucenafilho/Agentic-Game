@@ -2,12 +2,10 @@ import math
 
 import pygame
 
-from ..config import (
-    GRAVITY, JUMP_FORCE, MOVE_SPEED, ARROW_SPEED,
-    ARROW_COOLDOWN, MELEE_COOLDOWN, WIDTH, HEIGHT, BLACK, WHITE,
-)
-from .projectile import LaserBeam, LightsaberSwipe
+from ..config import (ARROW_COOLDOWN, ARROW_SPEED, BLACK, GRAVITY, HEIGHT,
+                      JUMP_FORCE, MELEE_COOLDOWN, MOVE_SPEED, WHITE, WIDTH)
 from .particle import Particle
+from .projectile import LaserBeam, LightsaberSwipe
 
 
 class Player:
@@ -128,6 +126,13 @@ class Player:
                     else:
                         self.vx *= 0.8
                         self.vy *= 0.8
+
+                    if keys[ctrl["up"]]:
+                        self.vx -= self.gravity_nx * MOVE_SPEED
+                        self.vy -= self.gravity_ny * MOVE_SPEED
+                    elif keys[ctrl["down"]]:
+                        self.vx += self.gravity_nx * MOVE_SPEED
+                        self.vy += self.gravity_ny * MOVE_SPEED
                 else:
                     if keys[ctrl["left"]]:
                         self.vx = -MOVE_SPEED

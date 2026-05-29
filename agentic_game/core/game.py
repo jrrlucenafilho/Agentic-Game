@@ -1,10 +1,11 @@
-import sys
 import random
+import sys
 
 import pygame
 
-from ..config import WIDTH, HEIGHT, FPS, METEOR_START, UFO_GREEN, WHITE
-from ..entities.enemy import Meteor as MeteorEntity, UFO
+from ..config import FPS, HEIGHT, METEOR_START, UFO_GREEN, WHITE, WIDTH
+from ..entities.enemy import UFO
+from ..entities.enemy import Meteor as MeteorEntity
 from ..entities.particle import Particle
 from ..rendering import background as bg
 from ..rendering.hud import draw_hud, draw_message
@@ -114,7 +115,9 @@ class Game:
                     player.draw(self.screen)
                 for p in particles:
                     p.draw(self.screen)
-                draw_message(self.screen, self.big_font, message_surf, message_timer, prompt_surf)
+                draw_message(
+                    self.screen, self.big_font, message_surf, message_timer, prompt_surf
+                )
                 pygame.display.flip()
                 self.clock.tick(FPS)
                 continue
@@ -227,7 +230,9 @@ class Game:
                             dy = beam.y - sy
                             if dx * dx + dy * dy <= r * r:
                                 for _ in range(5):
-                                    particles.append(Particle(beam.x, beam.y, UFO_GREEN))
+                                    particles.append(
+                                        Particle(beam.x, beam.y, UFO_GREEN)
+                                    )
                                 u.beams.pop(bi)
                                 break
 
@@ -244,7 +249,8 @@ class Game:
 
             if (
                 round_timer > METEOR_START
-                and round_timer % max(120, 240 - (round_timer - METEOR_START) // 20) == 0
+                and round_timer % max(120, 240 - (round_timer - METEOR_START) // 20)
+                == 0
                 and random.random() < 0.5
                 and ufo_respawn_timer <= 0
                 and not any(not u.done for u in ufos)
