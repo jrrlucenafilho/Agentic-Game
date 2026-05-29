@@ -6,7 +6,7 @@ import pygame
 
 pygame.init()
 
-WIDTH, HEIGHT = 1400, 900
+WIDTH, HEIGHT = 1800, 1000
 TILE_SIZE = 32
 FPS = 60
 
@@ -15,6 +15,8 @@ JUMP_FORCE = 30
 MOVE_SPEED = 5
 ARROW_SPEED = 10
 ARROW_COOLDOWN = 500
+MELEE_COOLDOWN = 600
+MELEE_RANGE = 50
 METEOR_START = 600
 
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
@@ -192,12 +194,31 @@ class Player:
         self.charging = False
         self.charge_angle = 0.0
         self.charge_dir = 1
+        self.aim_dir = (1, 0)
+        self.last_melee = 0
 
     def update(self, keys, platforms):
         if not self.alive:
             return
 
         ctrl = self.controls
+
+        ax, ay = 0, 0
+        if keys[ctrl["left"]]:
+            ax = -1
+            self.facing = -1
+        elif keys[ctrl["right"]]:
+            ax = 1
+            self.facing = 1
+        if keys[ctrl["up"]]:
+            ay = -1
+        elif keys[ctrl["down"]]:
+            ay = 1
+        if ax != 0 or ay != 0:
+            if ax != 0 and ay != 0:
+                self.aim_dir = (ax * 0.7071, ay * 0.7071)
+            else:
+                self.aim_dir = (ax, ay)
 
         gravity_field_count = 0
         for plat in platforms:
@@ -312,13 +333,7 @@ class Player:
             self.die()
 
     def get_forward_vector(self):
-        if self.on_ground:
-            tx = -self.ground_ny * self.facing
-            ty = self.ground_nx * self.facing
-        else:
-            tx = self.facing
-            ty = 0
-        return tx, ty
+        return self.aim_dir
 
     def get_aim_vector(self):
         tx, ty = self.get_forward_vector()
@@ -332,9 +347,26 @@ class Player:
             return None
         self.last_shot = now
         tx, ty = self.get_aim_vector()
-        arrow_x = self.rect.centerx + tx * 12
-        arrow_y = self.rect.centery + ty * 12
-        return Arrow(arrow_x, arrow_y, ARROW_SPEED * tx, ARROW_SPEED * ty, self)
+        beam_x = self.rect.centerx + tx * 12
+        beam_y = self.rect.centery + ty * 12
+        return LaserBeam(
+            beam_x, beam_y, ARROW_SPEED * tx, ARROW_SPEED * ty, self.color, self
+        )
+
+    def melee(self):
+        now = pygame.time.get_ticks()
+        if now - self.last_melee < MELEE_COOLDOWN:
+            return None
+        self.last_melee = now
+        tx, ty = self.get_forward_vector()
+        return LightsaberSwipe(
+            self.rect.centerx,
+            self.rect.centery,
+            tx,
+            ty,
+            self.color,
+            self,
+        )
 
     def start_charge(self):
         now = pygame.time.get_ticks()
@@ -499,16 +531,27 @@ class Player:
             pygame.draw.line(screen, WHITE, (cx, cy), (end_x, end_y), 3)
 
 
-class Arrow:
-    def __init__(self, x, y, vx, vy, owner):
-        self.rect = pygame.Rect(x, y, 16, 4)
+class LaserBeam:
+    def __init__(self, x, y, vx, vy, color, owner):
+        self.x = float(x)
+        self.y = float(y)
         self.vx = vx
         self.vy = vy
+        self.color = color
         self.owner = owner
+        self.rect = pygame.Rect(0, 0, 12, 12)
+        self.rect.center = (int(x), int(y))
+        self.trail = []
 
     def update(self, platforms, players):
-        self.rect.x += self.vx
-        self.rect.y += self.vy
+        self.trail.append((self.x, self.y))
+        if len(self.trail) > 6:
+            self.trail.pop(0)
+
+        self.x += self.vx
+        self.y += self.vy
+        self.rect.center = (int(self.x), int(self.y))
+
         hit = False
         for plat in platforms:
             cx = max(self.rect.left, min(plat.x, self.rect.right))
@@ -523,22 +566,114 @@ class Arrow:
                         return player
         if (
             hit
-            or self.rect.x < 0
-            or self.rect.x > WIDTH
-            or self.rect.y < 0
-            or self.rect.y > HEIGHT
+            or self.x < -50
+            or self.x > WIDTH + 50
+            or self.y < -50
+            or self.y > HEIGHT + 50
         ):
             return "miss"
         return None
 
     def draw(self):
-        surf = pygame.Surface((20, 12), pygame.SRCALPHA)
-        pygame.draw.rect(surf, ARROW_SHAFT, (2, 4, 16, 4))
-        pygame.draw.rect(surf, ARROW_HEAD, (16, 2, 4, 8))
-        angle = math.degrees(math.atan2(self.vy, self.vx))
-        surf = pygame.transform.rotate(surf, -angle)
-        rect = surf.get_rect(center=self.rect.center)
-        screen.blit(surf, rect)
+        for i, (tx, ty) in enumerate(self.trail):
+            alpha = int(60 * (i / len(self.trail))) + 10
+            r = 2 + i
+            s = pygame.Surface((r * 2, r * 2), pygame.SRCALPHA)
+            pygame.draw.circle(s, (*self.color, alpha), (r, r), r)
+            screen.blit(s, (int(tx - r), int(ty - r)))
+
+        cx, cy = int(self.x), int(self.y)
+        s = pygame.Surface((16, 16), pygame.SRCALPHA)
+        pygame.draw.circle(s, (*self.color, 200), (8, 8), 6)
+        pygame.draw.circle(s, WHITE, (8, 8), 3)
+        screen.blit(s, (cx - 8, cy - 8))
+
+
+class LightsaberSwipe:
+    def __init__(self, x, y, aim_x, aim_y, color, owner):
+        self.x = float(x)
+        self.y = float(y)
+        self.owner = owner
+        self.color = color
+        self.range = MELEE_RANGE
+        self.lifetime = 10
+        self.base_angle = math.atan2(aim_y, aim_x)
+        self.hit_players = set()
+        self.done = False
+
+    def update(self, players):
+        self.lifetime -= 1
+        if self.lifetime <= 0:
+            self.done = True
+            return None
+
+        for player in players:
+            if player.alive and player != self.owner and player not in self.hit_players:
+                dx = player.rect.centerx - self.x
+                dy = player.rect.centery - self.y
+                dist = math.hypot(dx, dy)
+                if dist <= self.range:
+                    angle_to = math.atan2(dy, dx)
+                    diff = (angle_to - self.base_angle + math.pi) % (
+                        2 * math.pi
+                    ) - math.pi
+                    if abs(diff) <= math.pi / 3:
+                        self.hit_players.add(player)
+                        return player
+        return None
+
+    def draw(self):
+        if self.done:
+            return
+
+        cx, cy = int(self.x), int(self.y)
+        progress = 1 - self.lifetime / 10
+        total_sweep = math.pi * 0.8
+        sweep = progress * total_sweep
+        start_angle = self.base_angle - total_sweep / 2
+        current_angle = start_angle + sweep
+        r = self.range
+
+        # Trail blades behind the sweep
+        trail_steps = 5
+        for i in range(trail_steps):
+            t = (i + 1) / (trail_steps + 1)
+            if t > progress:
+                break
+            trail_angle = start_angle + t * total_sweep
+            trail_alpha = int(40 * (t / progress))
+            trail_width = max(1, int(4 * (t / progress)))
+            ex = cx + math.cos(trail_angle) * r
+            ey = cy + math.sin(trail_angle) * r
+            s = pygame.Surface((r * 2, r * 2), pygame.SRCALPHA)
+            pygame.draw.line(
+                s,
+                (*self.color, trail_alpha),
+                (r, r),
+                (
+                    int(r + math.cos(trail_angle) * r),
+                    int(r + math.sin(trail_angle) * r),
+                ),
+                trail_width,
+            )
+            screen.blit(s, (cx - r, cy - r))
+
+        # Main blade at current position
+        ex = cx + math.cos(current_angle) * r
+        ey = cy + math.sin(current_angle) * r
+        for thickness, alpha in [(10, 30), (6, 80), (3, 200)]:
+            s = pygame.Surface((r * 2, r * 2), pygame.SRCALPHA)
+            pygame.draw.line(
+                s,
+                (*self.color, alpha),
+                (r, r),
+                (
+                    int(r + math.cos(current_angle) * r),
+                    int(r + math.sin(current_angle) * r),
+                ),
+                thickness,
+            )
+            screen.blit(s, (cx - r, cy - r))
 
 
 class Meteor:
@@ -810,6 +945,7 @@ def init_players(platforms):
                 "up": pygame.K_w,
                 "down": pygame.K_s,
                 "shoot": pygame.K_f,
+                "melee": pygame.K_g,
             },
             "P1",
         ),
@@ -823,6 +959,7 @@ def init_players(platforms):
                 "up": pygame.K_UP,
                 "down": pygame.K_DOWN,
                 "shoot": pygame.K_l,
+                "melee": pygame.K_k,
             },
             "P2",
         ),
@@ -898,7 +1035,8 @@ def main():
     generate_background()
     platforms = create_platforms()
     players = init_players(platforms)
-    arrows = []
+    lasers = []
+    swipes = []
     particles = []
     meteors = []
     ufos = []
@@ -933,7 +1071,8 @@ def main():
                 p2_score = 0
                 platforms = create_platforms()
                 players = init_players(platforms)
-                arrows.clear()
+                lasers.clear()
+                swipes.clear()
                 particles.clear()
                 meteors.clear()
                 ufos.clear()
@@ -944,7 +1083,8 @@ def main():
                 round_num += 1
                 platforms = create_platforms()
                 players = init_players(platforms)
-                arrows.clear()
+                lasers.clear()
+                swipes.clear()
                 particles.clear()
                 meteors.clear()
                 ufos.clear()
@@ -964,8 +1104,10 @@ def main():
                 m.draw()
             for u in ufos:
                 u.draw()
-            for arrow in arrows:
-                arrow.draw()
+            for s in swipes:
+                s.draw()
+            for laser in lasers:
+                laser.draw()
             for player in players:
                 player.draw()
             for p in particles:
@@ -997,24 +1139,40 @@ def main():
             if shoot_held and not player.charging:
                 player.start_charge()
             elif not shoot_held and player.charging:
-                arrow = player.release_charge()
-                if arrow:
-                    arrows.append(arrow)
+                beam = player.release_charge()
+                if beam:
+                    lasers.append(beam)
             elif shoot_held and player.charging:
                 player.update_charge()
 
-        for i in range(len(arrows) - 1, -1, -1):
-            result = arrows[i].update(platforms, players)
+            if keys_pressed[player.controls["melee"]]:
+                swipe = player.melee()
+                if swipe:
+                    swipes.append(swipe)
+
+        for i in range(len(lasers) - 1, -1, -1):
+            result = lasers[i].update(platforms, players)
             if result == "miss":
-                arrows.pop(i)
+                lasers.pop(i)
             elif isinstance(result, Player):
                 particles.extend(result.die())
-                if arrows[i].owner == players[0]:
+                if lasers[i].owner == players[0]:
                     p1_score += 1
                 else:
                     p2_score += 1
-                arrows.pop(i)
+                lasers.pop(i)
                 check_round_end()
+
+        for i in range(len(swipes) - 1, -1, -1):
+            result = swipes[i].update(players)
+            if result == "miss":
+                swipes.pop(i)
+            elif isinstance(result, Player):
+                particles.extend(result.die())
+                swipes.pop(i)
+                check_round_end()
+            elif swipes[i].done:
+                swipes.pop(i)
 
         particles = [p for p in particles if p.update()]
 
@@ -1060,8 +1218,10 @@ def main():
             m.draw()
         for u in ufos:
             u.draw()
-        for arrow in arrows:
-            arrow.draw()
+        for s in swipes:
+            s.draw()
+        for laser in lasers:
+            laser.draw()
         for player in players:
             player.draw()
         for p in particles:
@@ -1083,7 +1243,7 @@ def main():
         )
         round_text = font.render(f"Round {round_num}", True, WHITE)
         controls_text = font.render(
-            "P1: WASD+F | P2: Arrows+L | R: Restart", True, (136, 136, 136)
+            "P1: WASD+F+G | P2: Arrows+L+K | R: Restart", True, (136, 136, 136)
         )
         screen.blit(p1_status, (10, 10))
         screen.blit(p2_status, (WIDTH - p2_status.get_width() - 10, 10))
