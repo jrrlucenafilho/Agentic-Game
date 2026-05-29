@@ -3,7 +3,8 @@ import math
 import pygame
 
 from ..config import (ARROW_COOLDOWN, ARROW_SPEED, BLACK, GRAVITY, HEIGHT,
-                      JUMP_FORCE, MELEE_COOLDOWN, MOVE_SPEED, WHITE, WIDTH)
+                      JUMP_FORCE, MELEE_COOLDOWN, MOVE_SPEED,
+                      TRANSITION_DURATION, WHITE, WIDTH)
 from .particle import Particle
 from .projectile import LaserBeam, LightsaberSwipe
 
@@ -31,6 +32,7 @@ class Player:
         self.charge_dir = 1
         self.aim_dir = (1, 0)
         self.last_melee = 0
+        self.transition_timer = 0
 
     def update(self, keys, platforms):
         if not self.alive:
@@ -65,6 +67,20 @@ class Player:
 
         in_hover = gravity_field_count >= 2 and not self.on_ground
 
+        # Track transition from shared-gravity hover to single-gravity field
+        if in_hover:
+            self.transition_timer = 0
+        elif (
+            not self.on_ground
+            and gravity_field_count == 1
+            and self.transition_timer < TRANSITION_DURATION
+        ):
+            self.transition_timer += 1
+        else:
+            self.transition_timer = TRANSITION_DURATION
+
+        blend = self.transition_timer / TRANSITION_DURATION
+
         if self.on_ground:
             if not self.charging:
                 tx = -self.ground_ny
@@ -89,7 +105,8 @@ class Player:
             elif self.charging:
                 self.vx *= 0.8
                 self.vy *= 0.8
-        elif in_hover:
+        elif in_hover or (blend < 1.0 and gravity_field_count == 1):
+            friction = 0.85 - blend * 0.05
             if not self.charging:
                 if keys[ctrl["left"]]:
                     self.vx = -MOVE_SPEED
@@ -98,17 +115,19 @@ class Player:
                     self.vx = MOVE_SPEED
                     self.facing = 1
                 else:
-                    self.vx *= 0.85
+                    self.vx *= friction
 
                 if keys[ctrl["up"]]:
                     self.vy = -MOVE_SPEED
                 elif keys[ctrl["down"]]:
                     self.vy = MOVE_SPEED
                 else:
-                    self.vy *= 0.85
+                    self.vy *= friction
             else:
-                self.vx *= 0.85
-                self.vy *= 0.85
+                self.vx *= friction
+                self.vy *= friction
+
+            self.vy += GRAVITY * blend
         else:
             if not self.charging:
                 in_field = self.gravity_nx != 0 or self.gravity_ny != 0

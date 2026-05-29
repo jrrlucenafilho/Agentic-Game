@@ -11,6 +11,9 @@ MELEE_COOLDOWN = 600
 MELEE_RANGE = 50
 METEOR_START = 600
 
+# Frames to blend controls when transitioning from shared-gravity hover to single-gravity field
+TRANSITION_DURATION = 20
+
 WHITE = (255, 255, 255)
 BLACK = (0, 0, 0)
 BG_COLOR = (8, 10, 30)
