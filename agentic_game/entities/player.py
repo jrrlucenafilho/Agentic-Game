@@ -2,9 +2,19 @@ import math
 
 import pygame
 
-from ..config import (ARROW_COOLDOWN, ARROW_SPEED, BLACK, GRAVITY, HEIGHT,
-                      JUMP_FORCE, MELEE_COOLDOWN, MOVE_SPEED,
-                      TRANSITION_DURATION, WHITE, WIDTH)
+from ..config import (
+    ARROW_COOLDOWN,
+    ARROW_SPEED,
+    BLACK,
+    GRAVITY,
+    HEIGHT,
+    JUMP_FORCE,
+    MELEE_COOLDOWN,
+    MOVE_SPEED,
+    TRANSITION_DURATION,
+    WHITE,
+    WIDTH,
+)
 from .particle import Particle
 from .projectile import LaserBeam, LightsaberSwipe
 
@@ -394,15 +404,20 @@ class Player:
             angle_fwd = math.atan2(ty, tx)
             half = math.radians(22.5)
             arc_r = 50
-            arc_rect = pygame.Rect(cx - arc_r, cy - arc_r, arc_r * 2, arc_r * 2)
-            pygame.draw.arc(
-                screen, WHITE, arc_rect, angle_fwd - half, angle_fwd + half, 2
-            )
             for offset in (-half, half):
                 ex = cx + math.cos(angle_fwd + offset) * arc_r
                 ey = cy + math.sin(angle_fwd + offset) * arc_r
                 pygame.draw.line(screen, WHITE, (cx, cy), (ex, ey), 1)
-            line_len = 80
+            steps = 10
+            for i in range(steps + 1):
+                t = i / steps
+                a = angle_fwd - half + t * 2 * half
+                px = cx + math.cos(a) * arc_r
+                py = cy + math.sin(a) * arc_r
+                if i > 0:
+                    pygame.draw.line(screen, WHITE, (lx, ly), (px, py), 1)
+                lx, ly = px, py
+            line_len = arc_r
             end_x = cx + aim_x * line_len
             end_y = cy + aim_y * line_len
             pygame.draw.line(screen, WHITE, (cx, cy), (end_x, end_y), 3)
