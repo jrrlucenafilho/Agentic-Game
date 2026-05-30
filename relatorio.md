@@ -193,4 +193,20 @@ borders and craters. Add procedural noise for visual variation. Also add a pixel
 surface background with earthy colors and craters.
 ```
 
+### Melhoria na visualização do arco de mira (`f3640c9`)
+
+O arco de mira, antes desenhado com `pygame.draw.arc`, foi substituído por uma renderização manual
+com segmentos de linha que conectam pontos ao longo do arco, formando um leque mais visível e
+estilizado. A linha central de direção também foi ajustada para usar o raio do arco como
+comprimento, resultando em um visual mais coerente e legível.
+
+Prompt:
+
+```
+Replace the aim arc drawn with pygame.draw.arc with a manual line-segment
+fan visualization. Draw multiple lines from the center outward along the arc
+angle range to form a more visible fan shape. Also make the central aim
+direction line length match the arc radius for visual consistency.
+```
+
 # Seção 3: Conclusões
