@@ -22,11 +22,11 @@ O modelo utilizado nesse momento é o `Qwen3.6 Plus` pelo `OpenCode` com reasoni
 Iniciei com um prompt detalhando como deve ser o loop de gameplay do jogo, especificando os comportamento possíveis
 e as informações necessárias para construir uma forma simples do jogo, inspirado em jogos `Party` de múltiplos
 jogadores, em especial `Super Smash Bros.` e `Bopl Battle` e `DDTank`, mas com nossas personalizações a fim de trazer originalidade
-De início o agente terminou o processamento produzindo uma versão que leva diretamente para uma partida, sem bugs aparentes, mas em HTML+JS. A fim de testes pedi para ele mudar a implementação para Python utilizando pygame e ele produziu uma versão que iniciava com um bug devido a um valor negativo na altura inicial da água. Mas após a ocrreção desse bug simples, ao testar o jogo escobrimos que ele permitia ignorar colisão com plataformas em certos edge cases. Mas após essa correção o jogo estava perfeitamente jogável e sem mais bugs aparentes
+De início o agente terminou o processamento produzindo uma versão que leva diretamente para uma partida, sem bugs aparentes, mas em HTML+JS. A fim de testes pedi para ele mudar a implementação para Python utilizando pygame e ele produziu uma versão que iniciava com um bug devido a um valor negativo na altura inicial da água (`ae14cae`). Mas após a ocrreção desse bug simples, ao testar o jogo escobrimos que ele permitia ignorar colisão com plataformas em certos edge cases. Mas após essa correção o jogo estava perfeitamente jogável e sem mais bugs aparentes
 Depois de algumas correções tanto usando agentes quanto manuais no código. Os bugs relacionados às colisões foram corrigidos
-Adicionado uma tela de vitória com prompt para restart
+Adicionado uma tela de vitória com prompt para restart (`e6ade37`)
 
-Prompt Inicial:
+Prompt Inicial (`f729fb2`):
 
 ```
 Create a 2D party battle game for two players inspired by Super Smash Bros and Bopl Battle.
@@ -41,11 +41,11 @@ The game should have:
 - Controls: Player 1 uses WASD + F to shoot, Player 2 uses Arrow Keys + L to shoot
 ```
 
-Inicialmente o agente produziu o jogo em HTML+JS. Pedi então para converter para Python com pygame:
+Inicialmente o agente produziu o jogo em HTML+JS (`f729fb2`). Pedi então para converter para Python com pygame:
 
 ---
 
-Mudamos o modelo para o `deepseek-v4-flash` a separamos as features a serem adicionadas:
+Mudamos o modelo para o `deepseek-v4-flash` a separamos as features a serem adicionadas (`a557c25`):
 
 - Feat 1: Substituir plataformas por planetoides com gravidade própria
 - Feat 2: Modificar a mecânica de tiro para permitir mirar cada tiro
@@ -55,7 +55,7 @@ Mudamos o modelo para o `deepseek-v4-flash` a separamos as features a serem adic
 - Feat 6: Adicionar pontuação, ignorando mortes acidentais
 - feat 7: Adicionar clashes em swings de sabres de luz
 
-## Feat 1
+## Feat 1 (`9ce53f9`, `e261319`)
 
 De início pedimos para o agente substituir as plataformas com planetoides que possuem sua própria gravidade.
 
@@ -74,7 +74,7 @@ Após uma quantidade considerável de prompts para corrigir tanto a rotação do
 deles para navegação (para fazer sentido com as mudanças e interações das gravidades), a navegação foi melhorada
 a ponto de alcançar o desejado
 
-## Feat 2
+## Feat 2 (`718900e`)
 
 Pedimos para o agente modificar a mecânica de tiro, antes um tiro instantâneo em linha reta, para um sistema de
 carregamento com mira direcional.
@@ -88,7 +88,7 @@ hover state when the player is within 2+ gravity fields without touching ground,
 in any direction with friction.
 ```
 
-## Feat 3
+## Feat 3 (`249169e`)
 
 Pedimos para substituir o hazard de água subindo por uma chuva de meteoros constante.
 
@@ -100,7 +100,7 @@ deal damage on collision, and create particle effects. Also adjust gravity and j
 better with the new hazard.
 ```
 
-## Feat 4
+## Feat 4 (`249169e`)
 
 Pedimos para adicionar um fundo de espaço estrelado, que veio junto com a feat 3.
 
@@ -111,7 +111,7 @@ Add a space background with a procedural starfield and a Saturn-like planet deco
 Use a dark color scheme to fit the space theme.
 ```
 
-## Feat 5
+## Feat 5 (`40d9a4e`)
 
 Pedimos para adicionar um UFO que ataca ambos os jogadores como um hazard extra.
 
@@ -122,7 +122,7 @@ Add a UFO that spawns periodically and attacks both players with laser beams. It
 entering, attacking, and leaving states. The UFO beams should deal damage to players on hit.
 ```
 
-## Feat 6
+## Feat 6 (`ab0518a`)
 
 Pedimos para adicionar um sistema de pontuação, contabilizando mortes causadas por hazards/oponentes mas ignorando
 mortes acidentais (como sair da tela).
@@ -135,7 +135,7 @@ not accidental deaths like falling off the screen or from any hazard. Display th
 during the game and reset it when starting a new round.
 ```
 
-## Feat 7
+## Feat 7 (`98496ea`, `ab8fc30`)
 
 Pedimos para adicionar clashes (colisão) entre swings de sabres de luz, com partículas e recuo.
 
@@ -147,7 +147,7 @@ particle effects at the collision point, apply knockback force to both owners, a
 swipes as completed.
 ```
 
-## Refactor
+## Refactor (`314f212`)
 
 Após as features, pedimos para refatorar o código monolítico em uma estrutura modular de pacotes.
 
@@ -163,7 +163,7 @@ rendering (background, HUD), and systems (spawner). Keep main.py as the entry po
 
 Após a refatoração, continuamos refinando a mecânica com prompts adicionais:
 
-### Movimento omnidirecional com pulo em qualquer direção
+### Movimento omnidirecional com pulo em qualquer direção (`350186c`)
 
 Prompt:
 
@@ -173,7 +173,7 @@ based on the ground normal. Simplify the gravity field movement logic to use dir
 instead of complex coordinate transformations.
 ```
 
-### Suavização de transição gravitacional
+### Suavização de transição gravitacional (`7c6227d`)
 
 Prompt:
 
@@ -183,7 +183,7 @@ Add a smooth transition when the player switches between gravity fields. When mo
 changes in movement.
 ```
 
-### Textura pixelada de asteroide e fundo planetário
+### Textura pixelada de asteroide e fundo planetário (`6fda259`)
 
 Prompt:
 
