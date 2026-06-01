@@ -55,7 +55,7 @@ Mudamos o modelo para o `deepseek-v4-flash` a separamos as features a serem adic
 - Feat 6: Adicionar pontuação, ignorando mortes acidentais
 - feat 7: Adicionar clashes em swings de sabres de luz
 
-## Feat 1 (`9ce53f9`, `e261319`)
+## Feat 1: Planetoides com Gravidade Própria (`9ce53f9`, `e261319`)
 
 De início pedimos para o agente substituir as plataformas com planetoides que possuem sua própria gravidade.
 
@@ -74,7 +74,7 @@ Após uma quantidade considerável de prompts para corrigir tanto a rotação do
 deles para navegação (para fazer sentido com as mudanças e interações das gravidades), a navegação foi melhorada
 a ponto de alcançar o desejado
 
-## Feat 2 (`718900e`)
+## Feat 2: Mecânica de Tiro com Mira (`718900e`)
 
 Pedimos para o agente modificar a mecânica de tiro, antes um tiro instantâneo em linha reta, para um sistema de
 carregamento com mira direcional.
@@ -88,7 +88,10 @@ hover state when the player is within 2+ gravity fields without touching ground,
 in any direction with friction.
 ```
 
-## Feat 3 (`249169e`)
+Foram necssários alguns prompts extras, pois inicialmente o arco de indicador de mira estava eguindo uma orientação contrária, devido à forma como o pygame
+escolhe qual ãngulo desenhar (sempre o menor). Foi necessário pedir para ele remover o arco e depois reimplementar levando em conta esse comportamento da biblioteca pygame
+
+## Feat 3: Chuva de Meteoros (`249169e`)
 
 Pedimos para substituir o hazard de água subindo por uma chuva de meteoros constante.
 
@@ -100,7 +103,10 @@ deal damage on collision, and create particle effects. Also adjust gravity and j
 better with the new hazard.
 ```
 
-## Feat 4 (`249169e`)
+Esse prompt funcionou mais diretamente, os prompts adicionais foram apenas uma mudança que fez o UFO escolher um player para atirar em vez de atirar nos dois jogadores de uma
+só vez. Fora isso o agente implementou como esperado
+
+## Feat 4: Background Espacial (`249169e`)
 
 Pedimos para adicionar um fundo de espaço estrelado, que veio junto com a feat 3.
 
@@ -111,7 +117,11 @@ Add a space background with a procedural starfield and a Saturn-like planet deco
 Use a dark color scheme to fit the space theme.
 ```
 
-## Feat 5 (`40d9a4e`)
+A ideia seria que a gravidade fora dos planetoides vem do planeta maior abaixo, portanto foi adicionado essa mudança no background.
+Essa ideia precisou de mais alguns prompts adicionais. pois o agente insistia em, inicialmente, adicionar uma camada monstrando explicitamente
+a gravidade no desenho, e isso acabou fazendo com que o semicírculo do planeta ficasse incompleto. Portanto as próximas prompts adicionais só corrigiram esse erro.
+
+## Feat 5: UFO como Hazard Extra (`40d9a4e`)
 
 Pedimos para adicionar um UFO que ataca ambos os jogadores como um hazard extra.
 
@@ -122,7 +132,10 @@ Add a UFO that spawns periodically and attacks both players with laser beams. It
 entering, attacking, and leaving states. The UFO beams should deal damage to players on hit.
 ```
 
-## Feat 6 (`ab0518a`)
+Esse prompt funcionou mais diretamente, os prompts adicionais foram apenas uma mudança que fez o UFO escolher um player para atirar em vez de atirar nos dois jogadores de uma
+só vez. Fora essa mudança de comportamento do UFO o agente implementou como esperado
+
+## Feat 6: Sistema de Pontuação (`ab0518a`)
 
 Pedimos para adicionar um sistema de pontuação, contabilizando mortes causadas por hazards/oponentes mas ignorando
 mortes acidentais (como sair da tela).
@@ -135,7 +148,9 @@ not accidental deaths like falling off the screen or from any hazard. Display th
 during the game and reset it when starting a new round.
 ```
 
-## Feat 7 (`98496ea`, `ab8fc30`)
+O prompt funcionaou diretamente, sem prompts extras necessários
+
+## Feat 7: Clashes de Sabres de Luz (`98496ea`, `ab8fc30`)
 
 Pedimos para adicionar clashes (colisão) entre swings de sabres de luz, com partículas e recuo.
 
@@ -173,6 +188,11 @@ based on the ground normal. Simplify the gravity field movement logic to use dir
 instead of complex coordinate transformations.
 ```
 
+Melhorou a navegação que antes era baseada na gravidade para uma navegação onde as direções são globais e sempre as mesmas (Setas sempre 
+vão nas direções esperadas), diferente de como era antes, onde direita/esquerda mudava dependendo da gravidade dos planetoides.
+
+Para tal, também colocamos que, quando sob o efeito da gravidade de 2 ou mais planetoides, as gravidades se cancelam.
+
 ### Suavização de transição gravitacional (`7c6227d`)
 
 Prompt:
@@ -183,6 +203,10 @@ Add a smooth transition when the player switches between gravity fields. When mo
 changes in movement.
 ```
 
+Devido ao comportamento especial do caso de 2 ou mais gravidades do prompt anterior, a transição entre "modo-apenas-1-gravidade"
+"modo-2-ou-mais-gravidades" estava muito abrupta e confusa para os jogadores. Esse prompt (e alguns mais após esse) foram feitos para
+corrigir essa transição, fazneo uma suavização na transição entre esses 2 modos.
+
 ### Textura pixelada de asteroide e fundo planetário (`6fda259`)
 
 Prompt:
@@ -192,6 +216,10 @@ Replace the simple circle/ellipse platform drawing with pixelated asteroid textu
 borders and craters. Add procedural noise for visual variation. Also add a pixelated planetary
 surface background with earthy colors and craters.
 ```
+
+Adiciona texturas com crateras aos planetoides, fazendo-os mais cabíveis ao tema espacial.
+Foram necessários alguns prompts a mais para corrigir erros nas texturas, pois o agente quiz incluir sombras, o que causava
+transparência indesejada devido a erros do uso do canal alpha do pygame.
 
 ### Melhoria na visualização do arco de mira (`f3640c9`)
 
