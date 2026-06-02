@@ -56,6 +56,7 @@ Mudamos o modelo para o `deepseek-v4-flash` a separamos as features a serem adic
 - Feat 7: Adicionar clashes em swings de sabres de luz
 - Feat 8: Adicionar Colisões de tiros
 - Feat 9: Adicionar chance de planetoides em movimento horizontal
+- Feat 10: Melhoras na HUD para tornar os dados de cada jogador mais destacados
 
 ## Feat 1: Planetoides com Gravidade Própria (`9ce53f9`, `e261319`)
 
@@ -166,7 +167,8 @@ swipes as completed.
 
 ## Refactor (`314f212`)
 
-Após as features, pedimos para refatorar o código monolítico em uma estrutura modular de pacotes.
+Após as features, o código acabou desorganizado e monolítico em apenas um arquivo.
+Portanto, pedimos para refatorar o código monolítico em uma estrutura modular de pacotes.
 
 Prompt:
 
@@ -275,9 +277,9 @@ Make it so when player's shots collide with each other, it cancels (causes colli
 between the shots with a few particles flying out
 ```
 
-Não foram necessários prompts extrasa para essa feature.
+Não foram necessários prompts extras para essa feature.
 
-## feat 9: Adicionar planetoides com movimento horizontal
+## Feat 9: Adicionar planetoides com movimento horizontal
 
 Prompt:
 
@@ -290,6 +292,20 @@ turn back around and do it again continuously
 ```
 
 Precisamos de alguns prompts extras, pois o agente estava tratando os planetoides em movimento como
-meteros. mas depois
+meteoros. E além disso a colisão entre meteoros Não estava funcionando como esperado de elementos no
+espaço (um pequeno hover ao mínimo, pós-colisão). E o agente também tinha esquecido de adicionar o círculo
+de gravidade ao redor dos planetoides em movimento.
 
-# Seção 3: Conclusões
+## Feat 10: Melhoras na HUD para tornar os dados de cada jogador mais destacados
+
+Prompt:
+
+```
+Change the HUD so that the buttons and scores are all unified in a rounded-corner
+square at the top-left and top-rightfor each player, the HUD color should match the
+respective player's color and should have a slightly translucent background
+```
+
+Não foram necessários prompts extras, apenas modificamos a aparência levemente para adicionar bordas
+
+# Seção 3: Conclusões e Comentários
