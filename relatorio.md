@@ -188,7 +188,7 @@ based on the ground normal. Simplify the gravity field movement logic to use dir
 instead of complex coordinate transformations.
 ```
 
-Melhorou a navegação que antes era baseada na gravidade para uma navegação onde as direções são globais e sempre as mesmas (Setas sempre 
+Melhorou a navegação que antes era baseada na gravidade para uma navegação onde as direções são globais e sempre as mesmas (Setas sempre
 vão nas direções esperadas), diferente de como era antes, onde direita/esquerda mudava dependendo da gravidade dos planetoides.
 
 Para tal, também colocamos que, quando sob o efeito da gravidade de 2 ou mais planetoides, as gravidades se cancelam.
@@ -236,5 +236,30 @@ fan visualization. Draw multiple lines from the center outward along the arc
 angle range to form a more visible fan shape. Also make the central aim
 direction line length match the arc radius for visual consistency.
 ```
+
+Foram necessários mais 2 prompts para normalizar o tamanho do arco com o dos outros elementos de mira, mas apenas isso e ele funcionou como esperado
+
+### Melhoria de UX ao atirar, manter posição pós-tiro
+
+Prompt:
+
+```
+In the game, after taking a shot my player character immediately starts goin in the shot's direction.
+Make it so that it stays still just after taking a shot so it doesn't immediately goes in the direction of the shot
+```
+
+Após um prompt a mais para tornar mais específico o que queremos, a implementação foi feita
+
+Prompt:
+
+```
+Still, when i do a shot and keep holding the button (as is the expected behavior) the player immediately follows the shot's direction,
+make it wait for another movement from the player (that's not a shot being aimed) for it to actually move the character
+
+```
+
+Após essa especificação melhor, o problema foi corrigido.
+
+### Tiros se quebram ao colidir entre si
 
 # Seção 3: Conclusões

@@ -43,6 +43,7 @@ class Player:
         self.aim_dir = (1, 0)
         self.last_melee = 0
         self.transition_timer = 0
+        self.movement_locked = False
 
     def update(self, keys, platforms):
         if not self.alive:
@@ -91,8 +92,11 @@ class Player:
 
         blend = self.transition_timer / TRANSITION_DURATION
 
+        if self.movement_locked and not (keys[ctrl["left"]] or keys[ctrl["right"]] or keys[ctrl["up"]] or keys[ctrl["down"]]):
+            self.movement_locked = False
+
         if self.on_ground:
-            if not self.charging:
+            if not self.charging and not self.movement_locked:
                 tx = -self.ground_ny
                 ty = self.ground_nx
 
@@ -124,12 +128,12 @@ class Player:
                     self.vx = self.ground_nx * JUMP_FORCE
                     self.vy = self.ground_ny * JUMP_FORCE
                     self.on_ground = False
-            elif self.charging:
+            else:
                 self.vx *= 0.8
                 self.vy *= 0.8
         elif in_hover or (blend < 1.0 and gravity_field_count == 1):
             friction = 0.85 - blend * 0.05
-            if not self.charging:
+            if not self.charging and not self.movement_locked:
                 if keys[ctrl["left"]]:
                     self.vx = -MOVE_SPEED
                     self.facing = -1
@@ -151,7 +155,7 @@ class Player:
 
             self.vy += GRAVITY * blend
         else:
-            if not self.charging:
+            if not self.charging and not self.movement_locked:
                 in_field = self.gravity_nx != 0 or self.gravity_ny != 0
                 if in_field:
                     if keys[ctrl["left"]]:
@@ -278,6 +282,9 @@ class Player:
         if not self.charging:
             return None
         self.charging = False
+        self.vx = 0
+        self.vy = 0
+        self.movement_locked = True
         return self.shoot()
 
     def die(self):
