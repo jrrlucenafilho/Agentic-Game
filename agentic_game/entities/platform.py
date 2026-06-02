@@ -25,6 +25,18 @@ class Platform:
         self.gravity_strength = 0.6
         self.gravity_range = self.radius * 3
         self._seed = int(x * 1009 + y * 7) & 0x7FFFFFFF
+        self.vx = 0.0
+        self.vy = 0.0
+
+    def update(self):
+        self.x += self.vx
+        self.y += self.vy
+        self.vx *= 0.82
+        self.vy *= 0.82
+        if abs(self.vx) < 0.1:
+            self.vx = 0.0
+        if abs(self.vy) < 0.1:
+            self.vy = 0.0
 
     def _noise(self, *args):
         h = self._seed

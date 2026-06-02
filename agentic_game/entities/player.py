@@ -45,7 +45,7 @@ class Player:
         self.transition_timer = 0
         self.movement_locked = False
 
-    def update(self, keys, platforms):
+    def update(self, keys, platforms, planetoids=()):
         if not self.alive:
             return
 
@@ -75,6 +75,13 @@ class Player:
             dist = math.sqrt(dx * dx + dy * dy)
             if 0 < dist < plat.gravity_range:
                 gravity_field_count += 1
+        for p in planetoids:
+            if p.mode == "moving":
+                dx = self.rect.centerx - p.x
+                dy = self.rect.centery - p.y
+                dist = math.sqrt(dx * dx + dy * dy)
+                if 0 < dist < p.gravity_range:
+                    gravity_field_count += 1
 
         in_hover = gravity_field_count >= 2 and not self.on_ground
 
@@ -201,6 +208,21 @@ class Player:
                 if not self.on_ground and not in_hover:
                     self.vx -= force * dx / dist
                     self.vy -= force * dy / dist
+        for p in planetoids:
+            if p.mode == "moving":
+                dx = self.rect.centerx - p.x
+                dy = self.rect.centery - p.y
+                dist = math.sqrt(dx * dx + dy * dy)
+                if 0 < dist < p.gravity_range:
+                    in_gravity_field = True
+                    t = dist / p.gravity_range
+                    force = p.gravity_strength * (1 - t * t)
+                    if force > max_gravity_force and force >= 0.05:
+                        max_gravity_force = force
+                        self.gravity_nx = -dx / dist
+                        self.gravity_ny = -dy / dist
+                    self.vx -= force * dx / dist
+                    self.vy -= force * dy / dist
 
         self.on_ground = False
         self.on_wall = 0
@@ -209,6 +231,9 @@ class Player:
         self.rect.y += self.vy
         for plat in platforms:
             plat.collide_player(self)
+        for p in planetoids:
+            if p.mode == "moving":
+                p.collide_player(self)
 
         if self.rect.left < 0:
             self.rect.left = 0

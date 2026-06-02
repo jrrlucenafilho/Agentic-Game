@@ -1,3 +1,4 @@
+import math
 import random
 import sys
 
@@ -5,7 +6,7 @@ import pygame
 
 from ..config import FPS, HEIGHT, METEOR_START, UFO_GREEN, WHITE, WIDTH
 from ..entities.enemy import UFO
-from ..entities.enemy import Meteor as MeteorEntity
+from ..entities.planetoid import Planetoid
 from ..entities.particle import Particle
 from ..rendering import background as bg
 from ..rendering.hud import draw_hud, draw_message
@@ -39,7 +40,7 @@ class Game:
         lasers = []
         swipes = []
         particles = []
-        meteors = []
+        planetoids = [Planetoid(mode="moving") for _ in range(random.randint(1, 2))]
         ufos = []
         ufo_respawn_timer = 0
 
@@ -75,11 +76,12 @@ class Game:
                     lasers.clear()
                     swipes.clear()
                     particles.clear()
-                    meteors.clear()
+                    planetoids.clear()
                     ufos.clear()
                     ufo_respawn_timer = 0
                     round_timer = 0
                     round_ended = False
+                    planetoids.extend([Planetoid(mode="moving") for _ in range(random.randint(1, 2))])
                     show_message(f"ROUND {round_num}", 90)
                 if event.type == pygame.KEYDOWN and round_ended:
                     round_num += 1
@@ -88,11 +90,12 @@ class Game:
                     lasers.clear()
                     swipes.clear()
                     particles.clear()
-                    meteors.clear()
+                    planetoids.clear()
                     ufos.clear()
                     ufo_respawn_timer = 0
                     round_timer = 0
                     round_ended = False
+                    planetoids.extend([Planetoid(mode="moving") for _ in range(random.randint(1, 2))])
                     show_message(f"ROUND {round_num}", 90)
 
             if message_timer > 0:
@@ -103,8 +106,8 @@ class Game:
                 bg.draw(self.screen)
                 for plat in platforms:
                     plat.draw(self.screen)
-                for m in meteors:
-                    m.draw(self.screen)
+                for p in planetoids:
+                    p.draw(self.screen)
                 for u in ufos:
                     u.draw(self.screen)
                 for s in swipes:
@@ -123,7 +126,7 @@ class Game:
                 continue
 
             for player in players:
-                player.update(keys_pressed, platforms)
+                player.update(keys_pressed, platforms, planetoids)
             check_round_end()
 
             for player in players:
@@ -179,6 +182,15 @@ class Game:
                 if hit_ufo:
                     continue
 
+            for i in range(len(lasers) - 1, -1, -1):
+                for p in planetoids:
+                    if not p.done and lasers[i].rect.colliderect(p.rect):
+                        hit_result = p.hit()
+                        if hit_result:
+                            particles.extend(hit_result)
+                        lasers.pop(i)
+                        break
+
             removed_lasers = set()
             for i in range(len(lasers)):
                 if i in removed_lasers:
@@ -225,6 +237,22 @@ class Game:
                             ufo_respawn_timer = 600
                         swipes.pop(i)
                         break
+
+            for i in range(len(swipes) - 1, -1, -1):
+                if swipes[i].done:
+                    continue
+                sx, sy = swipes[i].x, swipes[i].y
+                r = swipes[i].range
+                for p in planetoids:
+                    if not p.done:
+                        dx = p.rect.centerx - sx
+                        dy = p.rect.centery - sy
+                        if dx * dx + dy * dy <= r * r:
+                            hit_result = p.hit()
+                            if hit_result:
+                                particles.extend(hit_result)
+                            swipes.pop(i)
+                            break
 
             for i in range(len(swipes) - 1, -1, -1):
                 s1 = swipes[i]
@@ -285,11 +313,20 @@ class Game:
             if ufo_respawn_timer > 0:
                 ufo_respawn_timer -= 1
             round_timer += 1
+
             if (
                 round_timer > METEOR_START
                 and round_timer % max(60, 120 - (round_timer - METEOR_START) // 30) == 0
             ):
-                meteors.append(MeteorEntity())
+                planetoids.append(Planetoid(mode="falling"))
+
+            moving_chance = min(0.6, 0.15 + round_num * 0.08)
+            if (
+                random.random() < moving_chance
+                and round_timer > 240
+                and round_timer % 150 == 0
+            ):
+                planetoids.append(Planetoid(mode="moving"))
 
             if (
                 round_timer > METEOR_START
@@ -301,20 +338,59 @@ class Game:
             ):
                 ufos.append(UFO())
 
-            for i in range(len(meteors) - 1, -1, -1):
-                result = meteors[i].update(platforms, players)
+            for i in range(len(planetoids) - 1, -1, -1):
+                result = planetoids[i].update(platforms, players)
                 if result == "miss":
-                    meteors.pop(i)
+                    planetoids.pop(i)
                 elif isinstance(result, list):
                     particles.extend(result)
-                    meteors.pop(i)
+                    planetoids.pop(i)
                     check_round_end()
 
+            for i in range(len(planetoids) - 1, -1, -1):
+                a = planetoids[i]
+                if a.done:
+                    continue
+                for j in range(i - 1, -1, -1):
+                    b = planetoids[j]
+                    if b.done:
+                        continue
+                    if a.rect.colliderect(b.rect):
+                        dx = a.x - b.x
+                        dy = a.y - b.y
+                        dist = math.hypot(dx, dy)
+                        if dist == 0:
+                            dist = 0.01
+                        overlap = (a.size + b.size) - dist
+                        if overlap > 0:
+                            nx = dx / dist
+                            ny = dy / dist
+                            a.x += nx * overlap * 0.5
+                            a.y += ny * overlap * 0.5
+                            b.x -= nx * overlap * 0.5
+                            b.y -= ny * overlap * 0.5
+                            a.rect.center = (int(a.x), int(a.y))
+                            b.rect.center = (int(b.x), int(b.y))
+                            dvx = a.vx - b.vx
+                            dvy = a.vy - b.vy
+                            dvn = dvx * nx + dvy * ny
+                            if dvn < 0:
+                                a.vx -= dvn * nx
+                                a.vy -= dvn * ny
+                                b.vx += dvn * nx
+                                b.vy += dvn * ny
+                            for _ in range(5):
+                                mx = (a.x + b.x) / 2
+                                my = (a.y + b.y) / 2
+                                particles.append(Particle(mx, my, (200, 200, 255)))
+
+            for plat in platforms:
+                plat.update()
             bg.draw(self.screen)
             for plat in platforms:
                 plat.draw(self.screen)
-            for m in meteors:
-                m.draw(self.screen)
+            for p in planetoids:
+                p.draw(self.screen)
             for u in ufos:
                 u.draw(self.screen)
             for s in swipes:

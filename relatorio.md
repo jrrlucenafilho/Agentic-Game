@@ -54,7 +54,8 @@ Mudamos o modelo para o `deepseek-v4-flash` a separamos as features a serem adic
 - Feat 5: Adicionar hazard extra (UFO que ataca ambos os jogadores)
 - Feat 6: Adicionar pontuação, ignorando mortes acidentais
 - Feat 7: Adicionar clashes em swings de sabres de luz
-- Feat 8: Colisões de tiros
+- Feat 8: Adicionar Colisões de tiros
+- Feat 9: Adicionar chance de planetoides em movimento horizontal
 
 ## Feat 1: Planetoides com Gravidade Própria (`9ce53f9`, `e261319`)
 
@@ -275,5 +276,13 @@ between the shots with a few particles flying out
 ```
 
 Não foram necessários prompts extrasa para essa feature.
+
+## feat 9: Adicionar planetoides com movimento horizontal
+
+Prompt:
+
+```
+Make it so that some planetoids have a chance of moving horizontally. They should collide with other planetoids on their way in a physics-sensible way. And also these select planetoids (just a chance for they to appear per stage/round) should continuously move from left to right, and once they reach the end of the screen they should turn back around and do it again continuously
+```
 
 # Seção 3: Conclusões
