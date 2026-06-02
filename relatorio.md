@@ -282,7 +282,14 @@ Não foram necessários prompts extrasa para essa feature.
 Prompt:
 
 ```
-Make it so that some planetoids have a chance of moving horizontally. They should collide with other planetoids on their way in a physics-sensible way. And also these select planetoids (just a chance for they to appear per stage/round) should continuously move from left to right, and once they reach the end of the screen they should turn back around and do it again continuously
+Make it so that some planetoids have a chance of moving horizontally.
+They should collide with other planetoids on their way in a physics-sensible way.
+And also these select planetoids (just a chance for they to appear per stage/round) should
+continuously move from left to right, and once they reach the end of the screen they should
+turn back around and do it again continuously
 ```
+
+Precisamos de alguns prompts extras, pois o agente estava tratando os planetoides em movimento como
+meteros. mas depois
 
 # Seção 3: Conclusões
