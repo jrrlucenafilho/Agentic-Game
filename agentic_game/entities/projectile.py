@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, List, Tuple
 import pygame
 
 from ..config import MELEE_RANGE, WIDTH, HEIGHT, WHITE
+from .particle import Particle
 
 if TYPE_CHECKING:
     from .player import Player
@@ -34,7 +35,7 @@ class LaserBeam:
         self.done = False
         self.hit_player: Player | None = None
 
-    def update(self, platforms: List[Platform], players: List[Player]) -> List[pygame.Surface] | None:
+    def update(self, platforms: List[Platform], players: List[Player]) -> List[Particle] | None:
         self.trail.append((self.x, self.y))
         if len(self.trail) > 6:
             self.trail.pop(0)
@@ -104,7 +105,7 @@ class LightsaberSwipe:
         self.done = False
         self.hit_player: Player | None = None
 
-    def update(self, players: List[Player]) -> List[pygame.Surface] | None:
+    def update(self, players: List[Player]) -> List[Particle] | None:
         self.lifetime -= 1
         if self.lifetime <= 0:
             self.done = True

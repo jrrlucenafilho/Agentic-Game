@@ -6,7 +6,7 @@ from typing import List
 
 import pygame
 
-from ..config import WIDTH, HEIGHT, UFO_GREEN, WHITE, MISS
+from ..config import WIDTH, HEIGHT, UFO_GREEN, WHITE
 from .particle import Particle
 from .player import Player
 
@@ -24,7 +24,7 @@ class UFOBeam:
         self.rect = pygame.Rect(0, 0, 10, 10)
         self.done = False
 
-    def update(self, players: List[Player]) -> object:
+    def update(self, players: List[Player]) -> Player | None:
         self.x += self.vx
         self.y += self.vy
         self.rect.center = (int(self.x), int(self.y))
@@ -38,7 +38,6 @@ class UFOBeam:
             or self.y > HEIGHT + 100
         ):
             self.done = True
-            return MISS
         return None
 
     def draw(self, screen: pygame.Surface) -> None:
@@ -108,13 +107,12 @@ class UFO:
 
         for i in range(len(self.beams) - 1, -1, -1):
             res = self.beams[i].update(players)
-            if res is MISS or res is None:
-                if self.beams[i].done:
-                    self.beams.pop(i)
-            elif isinstance(res, Player):
+            if isinstance(res, Player):
                 p = res.die()
                 if p:
                     particles.extend(p)
+                self.beams.pop(i)
+            elif self.beams[i].done:
                 self.beams.pop(i)
 
         return particles if particles else None

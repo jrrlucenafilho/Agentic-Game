@@ -309,6 +309,19 @@ respective player's color and should have a slightly translucent background
 Não foram necessários prompts extras, apenas modificamos a aparência levemente para adicionar bordas
 e fazer a explicação do que cada tecla faz
 
+## Segundo Refactor
+
+Após todas as mudanças das features, pedimos por mais refactors (além de refactors não feitos pelo agente)
+a fim de diminuir "recriações da roda" que estavam sendo feitas, algo comum que acontece mesmo com desenvolvimento
+com human-in-the-loop.
+
+Prompt:
+
+```
+Check the codebase file structure and individual files.
+Is the code clean? Can it be refactored any better? What about it's formatting?
+```
+
 # Seção 3: Conclusões e Comentários
 
 ## Para quem não tinha experiência prévia com as tecnologias usadas e/ou o desenvolvimento

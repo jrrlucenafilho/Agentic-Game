@@ -8,7 +8,37 @@ from typing import List
 
 import pygame
 
-from ..config import FPS, HEIGHT, METEOR_START, UFO_GREEN, WHITE, WIDTH
+from ..config import (
+    BEAM_COLLISION_PARTICLES,
+    FPS,
+    HEIGHT,
+    INITIAL_PLANETOID_MAX,
+    INITIAL_PLANETOID_MIN,
+    LASER_CLASH_PARTICLES,
+    METEOR_FALL_INTERVAL_BASE,
+    METEOR_FALL_INTERVAL_DECAY,
+    METEOR_FALL_INTERVAL_MAX,
+    METEOR_START,
+    MOVING_PLANETOID_BASE_CHANCE,
+    MOVING_PLANETOID_CHANCE_PER_ROUND,
+    MOVING_PLANETOID_INTERVAL,
+    MOVING_PLANETOID_MAX_CHANCE,
+    MOVING_PLANETOID_START_TIME,
+    PLANETOID_COLLISION_COLOR,
+    PLANETOID_COLLISION_PARTICLES,
+    ROUND_END_MSG_DURATION,
+    ROUND_START_MSG_DURATION,
+    SWIPE_CLASH_FORCE,
+    SWIPE_CLASH_PARTICLES,
+    UFO_GREEN,
+    UFO_RESPAWN_DELAY,
+    UFO_SPAWN_CHANCE,
+    UFO_SPAWN_INTERVAL_BASE,
+    UFO_SPAWN_INTERVAL_DECAY,
+    UFO_SPAWN_INTERVAL_MAX,
+    WHITE,
+    WIDTH,
+)
 from ..entities.enemy import UFO
 from ..entities.particle import Particle
 from ..entities.planetoid import Planetoid
@@ -61,7 +91,7 @@ class Game:
         alive = [p for p in state.players if p.alive]
         if len(alive) <= 1:
             winner = alive[0].name if alive else "DRAW"
-            self._show_message(f"{winner} WINS!" if alive else "DRAW!", 999999)
+            self._show_message(f"{winner} WINS!" if alive else "DRAW!", ROUND_END_MSG_DURATION)
             state.round_ended = True
 
     def _reset_round(self, new_round_num: int, reset_scores: bool = False) -> None:
@@ -81,9 +111,9 @@ class Game:
         state.round_timer = 0
         state.round_ended = False
         state.planetoids.extend(
-            [Planetoid(mode="moving") for _ in range(random.randint(1, 2))]
+            [Planetoid(mode="moving") for _ in range(random.randint(INITIAL_PLANETOID_MIN, INITIAL_PLANETOID_MAX))]
         )
-        self._show_message(f"ROUND {state.round_num}", 90)
+        self._show_message(f"ROUND {state.round_num}", ROUND_START_MSG_DURATION)
 
     def _draw_scene(self) -> None:
         state = self.state
@@ -136,11 +166,34 @@ class Game:
             if ufo.done:
                 state.ufos.pop(i)
 
+    def _hit_entity(self, entity, hit_check_fn) -> bool:
+        if entity.done:
+            return False
+        if not hit_check_fn(entity):
+            return False
+        result = entity.hit()
+        if result:
+            self.state.particles.extend(result)
+        return True
+
+    def _hit_ufos(self, hit_check_fn) -> bool:
+        for u in self.state.ufos:
+            if self._hit_entity(u, hit_check_fn):
+                self.state.ufo_respawn_timer = UFO_RESPAWN_DELAY
+                return True
+        return False
+
+    def _hit_planetoids(self, hit_check_fn) -> bool:
+        for p in self.state.planetoids:
+            if self._hit_entity(p, hit_check_fn):
+                return True
+        return False
+
     def _update_lasers(self) -> None:
         state = self.state
+        alive = []
 
-        for i in range(len(state.lasers) - 1, -1, -1):
-            laser = state.lasers[i]
+        for laser in state.lasers:
             new_particles = laser.update(state.platforms, state.players)
             if new_particles:
                 state.particles.extend(new_particles)
@@ -151,104 +204,65 @@ class Game:
                     else:
                         state.p2_score += 1
                     self._check_round_end()
-                state.lasers.pop(i)
-
-        for i in range(len(state.lasers) - 1, -1, -1):
-            laser = state.lasers[i]
-            for u in state.ufos:
-                if not u.done and laser.rect.colliderect(u.rect):
-                    hit_result = u.hit()
-                    if hit_result:
-                        state.particles.extend(hit_result)
-                        state.ufo_respawn_timer = 600
-                    state.lasers.pop(i)
-                    break
-
-        for i in range(len(state.lasers) - 1, -1, -1):
-            laser = state.lasers[i]
-            for p in state.planetoids:
-                if not p.done and laser.rect.colliderect(p.rect):
-                    hit_result = p.hit()
-                    if hit_result:
-                        state.particles.extend(hit_result)
-                    state.lasers.pop(i)
-                    break
+                continue
+            if self._hit_ufos(lambda u: laser.rect.colliderect(u.rect)):
+                continue
+            if self._hit_planetoids(lambda p: laser.rect.colliderect(p.rect)):
+                continue
+            alive.append(laser)
 
         removed: set[int] = set()
-        for i in range(len(state.lasers)):
+        for i in range(len(alive)):
             if i in removed:
                 continue
-            for j in range(i + 1, len(state.lasers)):
+            for j in range(i + 1, len(alive)):
                 if j in removed:
                     continue
-                if state.lasers[i].rect.colliderect(state.lasers[j].rect):
-                    mx = (state.lasers[i].x + state.lasers[j].x) / 2
-                    my = (state.lasers[i].y + state.lasers[j].y) / 2
-                    for _ in range(15):
+                if alive[i].rect.colliderect(alive[j].rect):
+                    mx = (alive[i].x + alive[j].x) / 2
+                    my = (alive[i].y + alive[j].y) / 2
+                    for _ in range(LASER_CLASH_PARTICLES):
                         state.particles.append(Particle(mx, my, WHITE))
                     removed.add(i)
                     removed.add(j)
                     break
-        for idx in sorted(removed, reverse=True):
-            state.lasers.pop(idx)
+        state.lasers = [alive[i] for i in range(len(alive)) if i not in removed]
 
     def _update_swipes(self) -> None:
         state = self.state
+        alive = []
 
-        for i in range(len(state.swipes) - 1, -1, -1):
-            swipe = state.swipes[i]
+        for swipe in state.swipes:
             new_particles = swipe.update(state.players)
             if new_particles:
                 state.particles.extend(new_particles)
             if swipe.done:
                 if swipe.hit_player:
                     self._check_round_end()
-                state.swipes.pop(i)
-
-        for i in range(len(state.swipes) - 1, -1, -1):
-            swipe = state.swipes[i]
-            if swipe.done:
                 continue
-            sx, sy = swipe.x, swipe.y
-            r = swipe.range
-            for u in state.ufos:
-                if u.done:
-                    continue
-                dx = u.rect.centerx - sx
-                dy = u.rect.centery - sy
-                if dx * dx + dy * dy <= r * r:
-                    hit_result = u.hit()
-                    if hit_result:
-                        state.particles.extend(hit_result)
-                        state.ufo_respawn_timer = 600
-                    state.swipes.pop(i)
-                    break
-
-        for i in range(len(state.swipes) - 1, -1, -1):
-            swipe = state.swipes[i]
-            if swipe.done:
+            if self._hit_ufos(
+                lambda u: (u.rect.centerx - swipe.x) ** 2
+                + (u.rect.centery - swipe.y) ** 2
+                <= swipe.range * swipe.range
+            ):
                 continue
-            sx, sy = swipe.x, swipe.y
-            r = swipe.range
-            for p in state.planetoids:
-                if not p.done:
-                    dx = p.rect.centerx - sx
-                    dy = p.rect.centery - sy
-                    if dx * dx + dy * dy <= r * r:
-                        hit_result = p.hit()
-                        if hit_result:
-                            state.particles.extend(hit_result)
-                        state.swipes.pop(i)
-                        break
-
-        for i in range(len(state.swipes) - 1, -1, -1):
-            s1 = state.swipes[i]
-            if s1.done:
+            if self._hit_planetoids(
+                lambda p: (p.rect.centerx - swipe.x) ** 2
+                + (p.rect.centery - swipe.y) ** 2
+                <= swipe.range * swipe.range
+            ):
                 continue
+            alive.append(swipe)
+
+        removed: set[int] = set()
+        for i in range(len(alive) - 1, -1, -1):
+            if i in removed:
+                continue
+            s1 = alive[i]
             for j in range(i - 1, -1, -1):
-                s2 = state.swipes[j]
-                if s2.done:
+                if j in removed:
                     continue
+                s2 = alive[j]
                 dx = s2.x - s1.x
                 dy = s2.y - s1.y
                 dist_sq = dx * dx + dy * dy
@@ -256,16 +270,16 @@ class Game:
                 if dist_sq <= range_sum * range_sum:
                     mx = (s1.x + s2.x) / 2
                     my = (s1.y + s2.y) / 2
-                    for _ in range(25):
+                    for _ in range(SWIPE_CLASH_PARTICLES):
                         state.particles.append(Particle(mx, my, WHITE))
-                    push_force = 8
-                    s1.owner.vx += -s1.owner.aim_dir[0] * push_force
-                    s1.owner.vy += -s1.owner.aim_dir[1] * push_force
-                    s2.owner.vx += -s2.owner.aim_dir[0] * push_force
-                    s2.owner.vy += -s2.owner.aim_dir[1] * push_force
-                    s1.done = True
-                    s2.done = True
+                    s1.owner.vx += -s1.owner.aim_dir[0] * SWIPE_CLASH_FORCE
+                    s1.owner.vy += -s1.owner.aim_dir[1] * SWIPE_CLASH_FORCE
+                    s2.owner.vx += -s2.owner.aim_dir[0] * SWIPE_CLASH_FORCE
+                    s2.owner.vy += -s2.owner.aim_dir[1] * SWIPE_CLASH_FORCE
+                    removed.add(i)
+                    removed.add(j)
                     break
+        state.swipes = [s for idx, s in enumerate(alive) if idx not in removed]
 
     def _update_ufo_beam_collisions(self) -> None:
         state = self.state
@@ -276,7 +290,7 @@ class Game:
                 beam = u.beams[bi]
                 for li in range(len(state.lasers) - 1, -1, -1):
                     if beam.rect.colliderect(state.lasers[li].rect):
-                        for _ in range(5):
+                        for _ in range(BEAM_COLLISION_PARTICLES):
                             state.particles.append(Particle(beam.x, beam.y, UFO_GREEN))
                         u.beams.pop(bi)
                         state.lasers.pop(li)
@@ -290,7 +304,7 @@ class Game:
                         dx = beam.x - sx
                         dy = beam.y - sy
                         if dx * dx + dy * dy <= r * r:
-                            for _ in range(5):
+                            for _ in range(BEAM_COLLISION_PARTICLES):
                                 state.particles.append(
                                     Particle(beam.x, beam.y, UFO_GREEN)
                                 )
@@ -312,25 +326,25 @@ class Game:
         if (
             state.round_timer > METEOR_START
             and state.round_timer
-            % max(60, 120 - (state.round_timer - METEOR_START) // 30)
+            % max(METEOR_FALL_INTERVAL_BASE, METEOR_FALL_INTERVAL_MAX - (state.round_timer - METEOR_START) // METEOR_FALL_INTERVAL_DECAY)
             == 0
         ):
             state.planetoids.append(Planetoid(mode="falling"))
 
-        moving_chance = min(0.6, 0.15 + state.round_num * 0.08)
+        moving_chance = min(MOVING_PLANETOID_MAX_CHANCE, MOVING_PLANETOID_BASE_CHANCE + state.round_num * MOVING_PLANETOID_CHANCE_PER_ROUND)
         if (
             random.random() < moving_chance
-            and state.round_timer > 240
-            and state.round_timer % 150 == 0
+            and state.round_timer > MOVING_PLANETOID_START_TIME
+            and state.round_timer % MOVING_PLANETOID_INTERVAL == 0
         ):
             state.planetoids.append(Planetoid(mode="moving"))
 
         if (
             state.round_timer > METEOR_START
             and state.round_timer
-            % max(120, 240 - (state.round_timer - METEOR_START) // 20)
+            % max(UFO_SPAWN_INTERVAL_BASE, UFO_SPAWN_INTERVAL_MAX - (state.round_timer - METEOR_START) // UFO_SPAWN_INTERVAL_DECAY)
             == 0
-            and random.random() < 0.5
+            and random.random() < UFO_SPAWN_CHANCE
             and state.ufo_respawn_timer <= 0
             and not any(not u.done for u in state.ufos)
         ):
@@ -338,22 +352,23 @@ class Game:
 
     def _update_planetoids(self) -> None:
         state = self.state
+        alive = []
 
-        for i in range(len(state.planetoids) - 1, -1, -1):
-            planetoid = state.planetoids[i]
+        for planetoid in state.planetoids:
             new_particles = planetoid.update(state.platforms, state.players)
             if planetoid.done:
                 if new_particles:
                     state.particles.extend(new_particles)
                     self._check_round_end()
-                state.planetoids.pop(i)
+                continue
+            alive.append(planetoid)
 
-        for i in range(len(state.planetoids) - 1, -1, -1):
-            a = state.planetoids[i]
+        for i in range(len(alive) - 1, -1, -1):
+            a = alive[i]
             if a.done:
                 continue
             for j in range(i - 1, -1, -1):
-                b = state.planetoids[j]
+                b = alive[j]
                 if b.done:
                     continue
                 if a.rect.colliderect(b.rect):
@@ -380,10 +395,11 @@ class Game:
                             a.vy -= dvn * ny
                             b.vx += dvn * nx
                             b.vy += dvn * ny
-                        for _ in range(5):
+                        for _ in range(PLANETOID_COLLISION_PARTICLES):
                             mx = (a.x + b.x) / 2
                             my = (a.y + b.y) / 2
-                            state.particles.append(Particle(mx, my, (200, 200, 255)))
+                            state.particles.append(Particle(mx, my, PLANETOID_COLLISION_COLOR))
+        state.planetoids = alive
 
     def _update_platforms(self) -> None:
         for plat in self.state.platforms:
