@@ -20,12 +20,12 @@ def draw_hud(screen, font, players, scores, round_num):
     p1_lines = [
         f"P1: {'ALIVE' if players[0].alive else 'DEAD'}",
         f"Score: {scores[0]}",
-        "WASD + F + G",
+        "Move: WASD  |  Shoot: F  |  Sword: G",
     ]
     p2_lines = [
         f"P2: {'ALIVE' if players[1].alive else 'DEAD'}",
         f"Score: {scores[1]}",
-        "Arrows + L + K",
+        "Move: Arrows  |  Shoot: L  |  Sword: K",
     ]
 
     line_height = font.get_height() + 4
