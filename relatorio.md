@@ -53,7 +53,10 @@ Mudamos o modelo para o `deepseek-v4-flash` a separamos as features a serem adic
 - Feat 4: Adicionar um background de espaço
 - Feat 5: Adicionar hazard extra (UFO que ataca ambos os jogadores)
 - Feat 6: Adicionar pontuação, ignorando mortes acidentais
-- feat 7: Adicionar clashes em swings de sabres de luz
+- Feat 7: Adicionar clashes em swings de sabres de luz
+- Feat 8: Adicionar Colisões de tiros
+- Feat 9: Adicionar chance de planetoides em movimento horizontal
+- Feat 10: Melhoras na HUD para tornar os dados de cada jogador mais destacados
 
 ## Feat 1: Planetoides com Gravidade Própria (`9ce53f9`, `e261319`)
 
@@ -164,7 +167,8 @@ swipes as completed.
 
 ## Refactor (`314f212`)
 
-Após as features, pedimos para refatorar o código monolítico em uma estrutura modular de pacotes.
+Após as features, o código acabou desorganizado e monolítico em apenas um arquivo.
+Portanto, pedimos para refatorar o código monolítico em uma estrutura modular de pacotes.
 
 Prompt:
 
@@ -188,7 +192,7 @@ based on the ground normal. Simplify the gravity field movement logic to use dir
 instead of complex coordinate transformations.
 ```
 
-Melhorou a navegação que antes era baseada na gravidade para uma navegação onde as direções são globais e sempre as mesmas (Setas sempre 
+Melhorou a navegação que antes era baseada na gravidade para uma navegação onde as direções são globais e sempre as mesmas (Setas sempre
 vão nas direções esperadas), diferente de como era antes, onde direita/esquerda mudava dependendo da gravidade dos planetoides.
 
 Para tal, também colocamos que, quando sob o efeito da gravidade de 2 ou mais planetoides, as gravidades se cancelam.
@@ -237,4 +241,71 @@ angle range to form a more visible fan shape. Also make the central aim
 direction line length match the arc radius for visual consistency.
 ```
 
-# Seção 3: Conclusões
+Foram necessários mais 2 prompts para normalizar o tamanho do arco com o dos outros elementos de mira, mas apenas isso e ele funcionou como esperado
+
+### Melhoria de UX ao atirar, manter posição pós-tiro
+
+Prompt:
+
+```
+In the game, after taking a shot my player character immediately starts goin in the shot's direction.
+Make it so that it stays still just after taking a shot so it doesn't immediately goes in the direction of the shot
+```
+
+Após um prompt a mais para tornar mais específico o que queremos, a implementação foi feita
+
+Prompt:
+
+```
+Still, when i do a shot and keep holding the button (as is the expected behavior) the player immediately follows the shot's direction,
+make it wait for another movement from the player (that's not a shot being aimed) for it to actually move the character
+
+```
+
+Após essa especificação melhor, o problema foi corrigido.
+
+## Feat 8: Tiros se quebram ao colidir entre si
+
+Adicionamos detecção de colisão entre os tiros dos jogadores. Quando dois tiros se encontram,
+ambos são anulados com partículas brancas no ponto de colisão,
+seguindo o mesmo padrão visual do clash de sabres de luz.
+
+Prompt:
+
+```
+Make it so when player's shots collide with each other, it cancels (causes collision)
+between the shots with a few particles flying out
+```
+
+Não foram necessários prompts extras para essa feature.
+
+## Feat 9: Adicionar planetoides com movimento horizontal
+
+Prompt:
+
+```
+Make it so that some planetoids have a chance of moving horizontally.
+They should collide with other planetoids on their way in a physics-sensible way.
+And also these select planetoids (just a chance for they to appear per stage/round) should
+continuously move from left to right, and once they reach the end of the screen they should
+turn back around and do it again continuously
+```
+
+Precisamos de alguns prompts extras, pois o agente estava tratando os planetoides em movimento como
+meteoros. E além disso a colisão entre meteoros Não estava funcionando como esperado de elementos no
+espaço (um pequeno hover ao mínimo, pós-colisão). E o agente também tinha esquecido de adicionar o círculo
+de gravidade ao redor dos planetoides em movimento.
+
+## Feat 10: Melhoras na HUD para tornar os dados de cada jogador mais destacados
+
+Prompt:
+
+```
+Change the HUD so that the buttons and scores are all unified in a rounded-corner
+square at the top-left and top-rightfor each player, the HUD color should match the
+respective player's color and should have a slightly translucent background
+```
+
+Não foram necessários prompts extras, apenas modificamos a aparência levemente para adicionar bordas
+
+# Seção 3: Conclusões e Comentários

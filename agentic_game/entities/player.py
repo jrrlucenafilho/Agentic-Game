@@ -43,8 +43,9 @@ class Player:
         self.aim_dir = (1, 0)
         self.last_melee = 0
         self.transition_timer = 0
+        self.movement_locked = False
 
-    def update(self, keys, platforms):
+    def update(self, keys, platforms, planetoids=()):
         if not self.alive:
             return
 
@@ -74,6 +75,13 @@ class Player:
             dist = math.sqrt(dx * dx + dy * dy)
             if 0 < dist < plat.gravity_range:
                 gravity_field_count += 1
+        for p in planetoids:
+            if p.mode == "moving":
+                dx = self.rect.centerx - p.x
+                dy = self.rect.centery - p.y
+                dist = math.sqrt(dx * dx + dy * dy)
+                if 0 < dist < p.gravity_range:
+                    gravity_field_count += 1
 
         in_hover = gravity_field_count >= 2 and not self.on_ground
 
@@ -91,8 +99,11 @@ class Player:
 
         blend = self.transition_timer / TRANSITION_DURATION
 
+        if self.movement_locked and not (keys[ctrl["left"]] or keys[ctrl["right"]] or keys[ctrl["up"]] or keys[ctrl["down"]]):
+            self.movement_locked = False
+
         if self.on_ground:
-            if not self.charging:
+            if not self.charging and not self.movement_locked:
                 tx = -self.ground_ny
                 ty = self.ground_nx
 
@@ -124,12 +135,12 @@ class Player:
                     self.vx = self.ground_nx * JUMP_FORCE
                     self.vy = self.ground_ny * JUMP_FORCE
                     self.on_ground = False
-            elif self.charging:
+            else:
                 self.vx *= 0.8
                 self.vy *= 0.8
         elif in_hover or (blend < 1.0 and gravity_field_count == 1):
             friction = 0.85 - blend * 0.05
-            if not self.charging:
+            if not self.charging and not self.movement_locked:
                 if keys[ctrl["left"]]:
                     self.vx = -MOVE_SPEED
                     self.facing = -1
@@ -151,7 +162,7 @@ class Player:
 
             self.vy += GRAVITY * blend
         else:
-            if not self.charging:
+            if not self.charging and not self.movement_locked:
                 in_field = self.gravity_nx != 0 or self.gravity_ny != 0
                 if in_field:
                     if keys[ctrl["left"]]:
@@ -197,6 +208,21 @@ class Player:
                 if not self.on_ground and not in_hover:
                     self.vx -= force * dx / dist
                     self.vy -= force * dy / dist
+        for p in planetoids:
+            if p.mode == "moving":
+                dx = self.rect.centerx - p.x
+                dy = self.rect.centery - p.y
+                dist = math.sqrt(dx * dx + dy * dy)
+                if 0 < dist < p.gravity_range:
+                    in_gravity_field = True
+                    t = dist / p.gravity_range
+                    force = p.gravity_strength * (1 - t * t)
+                    if force > max_gravity_force and force >= 0.05:
+                        max_gravity_force = force
+                        self.gravity_nx = -dx / dist
+                        self.gravity_ny = -dy / dist
+                    self.vx -= force * dx / dist
+                    self.vy -= force * dy / dist
 
         self.on_ground = False
         self.on_wall = 0
@@ -205,6 +231,9 @@ class Player:
         self.rect.y += self.vy
         for plat in platforms:
             plat.collide_player(self)
+        for p in planetoids:
+            if p.mode == "moving":
+                p.collide_player(self)
 
         if self.rect.left < 0:
             self.rect.left = 0
@@ -278,6 +307,9 @@ class Player:
         if not self.charging:
             return None
         self.charging = False
+        self.vx = 0
+        self.vy = 0
+        self.movement_locked = True
         return self.shoot()
 
     def die(self):
