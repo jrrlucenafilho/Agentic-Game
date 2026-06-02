@@ -179,6 +179,24 @@ class Game:
                 if hit_ufo:
                     continue
 
+            removed_lasers = set()
+            for i in range(len(lasers)):
+                if i in removed_lasers:
+                    continue
+                for j in range(i + 1, len(lasers)):
+                    if j in removed_lasers:
+                        continue
+                    if lasers[i].rect.colliderect(lasers[j].rect):
+                        mx = (lasers[i].x + lasers[j].x) / 2
+                        my = (lasers[i].y + lasers[j].y) / 2
+                        for _ in range(15):
+                            particles.append(Particle(mx, my, WHITE))
+                        removed_lasers.add(i)
+                        removed_lasers.add(j)
+                        break
+            for idx in sorted(removed_lasers, reverse=True):
+                lasers.pop(idx)
+
             for i in range(len(swipes) - 1, -1, -1):
                 result = swipes[i].update(players)
                 if result == "miss":

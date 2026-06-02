@@ -53,7 +53,8 @@ Mudamos o modelo para o `deepseek-v4-flash` a separamos as features a serem adic
 - Feat 4: Adicionar um background de espaço
 - Feat 5: Adicionar hazard extra (UFO que ataca ambos os jogadores)
 - Feat 6: Adicionar pontuação, ignorando mortes acidentais
-- feat 7: Adicionar clashes em swings de sabres de luz
+- Feat 7: Adicionar clashes em swings de sabres de luz
+- Feat 8: Colisões de tiros
 
 ## Feat 1: Planetoides com Gravidade Própria (`9ce53f9`, `e261319`)
 
@@ -260,6 +261,19 @@ make it wait for another movement from the player (that's not a shot being aimed
 
 Após essa especificação melhor, o problema foi corrigido.
 
-### Tiros se quebram ao colidir entre si
+## Feat 8: Tiros se quebram ao colidir entre si
+
+Adicionamos detecção de colisão entre os tiros dos jogadores. Quando dois tiros se encontram,
+ambos são anulados com partículas brancas no ponto de colisão,
+seguindo o mesmo padrão visual do clash de sabres de luz.
+
+Prompt:
+
+```
+Make it so when player's shots collide with each other, it cancels (causes collision)
+between the shots with a few particles flying out
+```
+
+Não foram necessários prompts extrasa para essa feature.
 
 # Seção 3: Conclusões
