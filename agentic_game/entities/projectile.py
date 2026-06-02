@@ -1,23 +1,40 @@
+from __future__ import annotations
+
 import math
+from typing import TYPE_CHECKING, List, Tuple
 
 import pygame
 
 from ..config import MELEE_RANGE, WIDTH, HEIGHT, WHITE
 
+if TYPE_CHECKING:
+    from .player import Player
+    from .platform import Platform
+
 
 class LaserBeam:
-    def __init__(self, x, y, vx, vy, color, owner):
-        self.x = float(x)
-        self.y = float(y)
+    def __init__(
+        self,
+        x: float,
+        y: float,
+        vx: float,
+        vy: float,
+        color: Tuple[int, int, int],
+        owner: Player,
+    ) -> None:
+        self.x = x
+        self.y = y
         self.vx = vx
         self.vy = vy
         self.color = color
         self.owner = owner
         self.rect = pygame.Rect(0, 0, 12, 12)
         self.rect.center = (int(x), int(y))
-        self.trail = []
+        self.trail: List[Tuple[float, float]] = []
+        self.done = False
+        self.hit_player: Player | None = None
 
-    def update(self, platforms, players):
+    def update(self, platforms: List[Platform], players: List[Player]) -> List[pygame.Surface] | None:
         self.trail.append((self.x, self.y))
         if len(self.trail) > 6:
             self.trail.pop(0)
@@ -26,29 +43,32 @@ class LaserBeam:
         self.y += self.vy
         self.rect.center = (int(self.x), int(self.y))
 
-        hit = False
         for plat in platforms:
             cx = max(self.rect.left, min(plat.x, self.rect.right))
             cy = max(self.rect.top, min(plat.y, self.rect.bottom))
             if plat.point_inside(cx, cy):
-                hit = True
-                break
-        if not hit:
-            for player in players:
-                if player.alive and player != self.owner:
-                    if self.rect.colliderect(player.rect):
-                        return player
+                self.done = True
+                return None
+
+        for player in players:
+            if player.alive and player is not self.owner:
+                if self.rect.colliderect(player.rect):
+                    self.done = True
+                    self.hit_player = player
+                    return player.die()
+
         if (
-            hit
-            or self.x < -50
+            self.x < -50
             or self.x > WIDTH + 50
             or self.y < -50
             or self.y > HEIGHT + 50
         ):
-            return "miss"
+            self.done = True
+            return None
+
         return None
 
-    def draw(self, screen):
+    def draw(self, screen: pygame.Surface) -> None:
         for i, (tx, ty) in enumerate(self.trail):
             alpha = int(60 * (i / len(self.trail))) + 10
             r = 2 + i
@@ -64,7 +84,15 @@ class LaserBeam:
 
 
 class LightsaberSwipe:
-    def __init__(self, x, y, aim_x, aim_y, color, owner):
+    def __init__(
+        self,
+        x: float,
+        y: float,
+        aim_x: float,
+        aim_y: float,
+        color: Tuple[int, int, int],
+        owner: Player,
+    ) -> None:
         self.x = float(x)
         self.y = float(y)
         self.owner = owner
@@ -72,17 +100,22 @@ class LightsaberSwipe:
         self.range = MELEE_RANGE
         self.lifetime = 10
         self.base_angle = math.atan2(aim_y, aim_x)
-        self.hit_players = set()
+        self.hit_players: set[Player] = set()
         self.done = False
+        self.hit_player: Player | None = None
 
-    def update(self, players):
+    def update(self, players: List[Player]) -> List[pygame.Surface] | None:
         self.lifetime -= 1
         if self.lifetime <= 0:
             self.done = True
             return None
 
         for player in players:
-            if player.alive and player != self.owner and player not in self.hit_players:
+            if (
+                player.alive
+                and player is not self.owner
+                and player not in self.hit_players
+            ):
                 dx = player.rect.centerx - self.x
                 dy = player.rect.centery - self.y
                 dist = math.hypot(dx, dy)
@@ -93,10 +126,13 @@ class LightsaberSwipe:
                     ) - math.pi
                     if abs(diff) <= math.pi / 3:
                         self.hit_players.add(player)
-                        return player
+                        self.done = True
+                        self.hit_player = player
+                        return player.die()
+
         return None
 
-    def draw(self, screen):
+    def draw(self, screen: pygame.Surface) -> None:
         if self.done:
             return
 

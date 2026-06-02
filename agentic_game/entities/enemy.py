@@ -1,72 +1,18 @@
+from __future__ import annotations
+
 import math
 import random
+from typing import List
 
 import pygame
 
-from ..config import WIDTH, HEIGHT, UFO_GREEN, WHITE
+from ..config import WIDTH, HEIGHT, UFO_GREEN, WHITE, MISS
 from .particle import Particle
 from .player import Player
 
 
-class Meteor:
-    def __init__(self):
-        self.x = random.randint(0, WIDTH)
-        self.y = random.randint(-100, -30)
-        self.vx = random.uniform(-2, 2)
-        self.vy = random.uniform(3, 8)
-        self.size = random.randint(6, 16)
-
-    def update(self, platforms, players):
-        self.x += self.vx
-        self.y += self.vy
-        self.vy += 0.12
-
-        for plat in platforms:
-            if plat.point_inside(self.x, self.y):
-                parts = []
-                for _ in range(15):
-                    parts.append(Particle(self.x, self.y, (255, 140, 40)))
-                return parts
-
-        for player in players:
-            if player.alive and player.rect.collidepoint(self.x, self.y):
-                result = player.die()
-                parts = []
-                for _ in range(15):
-                    parts.append(Particle(self.x, self.y, (255, 140, 40)))
-                if result:
-                    parts.extend(result)
-                return parts
-
-        if self.y > HEIGHT + 100:
-            return "miss"
-        return None
-
-    def draw(self, screen):
-        g = self.size + 6
-        glow = pygame.Surface((g * 2, g * 2), pygame.SRCALPHA)
-        pygame.draw.circle(glow, (255, 180, 50, 60), (g, g), g)
-        screen.blit(glow, (self.x - g, self.y - g))
-
-        pygame.draw.circle(
-            screen, (180, 100, 50), (int(self.x), int(self.y)), self.size
-        )
-        pygame.draw.circle(
-            screen, (240, 180, 80), (int(self.x), int(self.y)), self.size - 3
-        )
-
-        tail = min(self.size * 3, int(self.vy * 4))
-        for i in range(tail):
-            a = int(120 * (1 - i / tail))
-            tx = self.x - self.vx / max(abs(self.vy), 0.5) * i * 1.2
-            ty = self.y - self.vy / max(abs(self.vy), 0.5) * i * 1.2
-            s = pygame.Surface((4, 4), pygame.SRCALPHA)
-            s.fill((255, max(0, 200 - i * 6), 40, a))
-            screen.blit(s, (tx - 2, ty - 2))
-
-
 class UFOBeam:
-    def __init__(self, x, y, target_x, target_y):
+    def __init__(self, x: float, y: float, target_x: float, target_y: float) -> None:
         dx = target_x - x
         dy = target_y - y
         dist = math.hypot(dx, dy)
@@ -76,8 +22,9 @@ class UFOBeam:
         self.vx = (dx / dist) * speed if dist > 0 else 0
         self.vy = (dy / dist) * speed if dist > 0 else 0
         self.rect = pygame.Rect(0, 0, 10, 10)
+        self.done = False
 
-    def update(self, players):
+    def update(self, players: List[Player]) -> object:
         self.x += self.vx
         self.y += self.vy
         self.rect.center = (int(self.x), int(self.y))
@@ -90,10 +37,11 @@ class UFOBeam:
             or self.y < -100
             or self.y > HEIGHT + 100
         ):
-            return "miss"
+            self.done = True
+            return MISS
         return None
 
-    def draw(self, screen):
+    def draw(self, screen: pygame.Surface) -> None:
         cx, cy = int(self.x), int(self.y)
         for r in range(8, 0, -2):
             alpha = max(0, 80 - r * 10)
@@ -105,7 +53,7 @@ class UFOBeam:
 
 
 class UFO:
-    def __init__(self):
+    def __init__(self) -> None:
         self.x = float(random.randint(150, WIDTH - 150))
         self.y = -60.0
         self.target_y = float(random.randint(80, HEIGHT // 3))
@@ -114,17 +62,17 @@ class UFO:
         self.state = "entering"
         self.shots_remaining = random.randint(3, 7)
         self.shot_cooldown = 60
-        self.beams = []
+        self.beams: List[UFOBeam] = []
         self.health = 5
         self.rect = pygame.Rect(0, 0, 60, 30)
         self.rect.center = (int(self.x), int(self.y))
         self.done = False
 
-    def update(self, players):
+    def update(self, players: List[Player]) -> List[Particle] | None:
         if self.done:
             return None
 
-        particles = []
+        particles: List[Particle] = []
 
         if self.state == "entering":
             self.y += self.vy
@@ -160,30 +108,27 @@ class UFO:
 
         for i in range(len(self.beams) - 1, -1, -1):
             res = self.beams[i].update(players)
-            if res == "miss":
-                self.beams.pop(i)
+            if res is MISS or res is None:
+                if self.beams[i].done:
+                    self.beams.pop(i)
             elif isinstance(res, Player):
                 p = res.die()
                 if p:
                     particles.extend(p)
                 self.beams.pop(i)
 
-        if particles:
-            return particles
-        return None
+        return particles if particles else None
 
-    def hit(self):
+    def hit(self) -> List[Particle] | None:
         self.health -= 1
         if self.health <= 0:
-            parts = []
-            for _ in range(25):
-                parts.append(Particle(self.x, self.y, UFO_GREEN))
+            parts = [Particle(self.x, self.y, UFO_GREEN) for _ in range(25)]
             self.done = True
             self.beams.clear()
             return parts
         return None
 
-    def draw(self, screen):
+    def draw(self, screen: pygame.Surface) -> None:
         for beam in self.beams:
             beam.draw(screen)
 

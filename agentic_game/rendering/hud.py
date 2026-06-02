@@ -1,9 +1,24 @@
+from __future__ import annotations
+
+from typing import List, Tuple
+
 import pygame
 
 from ..config import WHITE, WIDTH, HEIGHT
 
 
-def draw_panel(screen, x, y, w, h, color, lines, font, pad, line_height):
+def draw_panel(
+    screen: pygame.Surface,
+    x: int,
+    y: int,
+    w: int,
+    h: int,
+    color: Tuple[int, int, int],
+    lines: List[str],
+    font: pygame.font.Font,
+    pad: int,
+    line_height: int,
+) -> None:
     panel = pygame.Surface((w, h), pygame.SRCALPHA)
     pygame.draw.rect(panel, (*color, 160), (0, 0, w, h), border_radius=10)
     pygame.draw.rect(panel, (*color, 255), (0, 0, w, h), width=2, border_radius=10)
@@ -13,7 +28,13 @@ def draw_panel(screen, x, y, w, h, color, lines, font, pad, line_height):
         screen.blit(surf, (x + pad, y + pad + i * line_height))
 
 
-def draw_hud(screen, font, players, scores, round_num):
+def draw_hud(
+    screen: pygame.Surface,
+    font: pygame.font.Font,
+    players: List,
+    scores: Tuple[int, int],
+    round_num: int,
+) -> None:
     p1_color = players[0].color
     p2_color = players[1].color
 
@@ -37,10 +58,14 @@ def draw_hud(screen, font, players, scores, round_num):
     panel_w = max(p1_max_w, p2_max_w) + pad * 2
     panel_h = len(p1_lines) * line_height + pad * 2
 
-    draw_panel(screen, margin, margin, panel_w, panel_h, p1_color, p1_lines, font, pad, line_height)
+    draw_panel(
+        screen, margin, margin, panel_w, panel_h, p1_color, p1_lines, font, pad, line_height
+    )
 
     p2_x = WIDTH - margin - panel_w
-    draw_panel(screen, p2_x, margin, panel_w, panel_h, p2_color, p2_lines, font, pad, line_height)
+    draw_panel(
+        screen, p2_x, margin, panel_w, panel_h, p2_color, p2_lines, font, pad, line_height
+    )
 
     round_text = font.render(f"Round {round_num}", True, WHITE)
     round_x = WIDTH // 2 - round_text.get_width() // 2
@@ -48,7 +73,13 @@ def draw_hud(screen, font, players, scores, round_num):
     screen.blit(round_text, (round_x, round_y))
 
 
-def draw_message(screen, big_font, message_surf, message_timer, prompt_surf=None):
+def draw_message(
+    screen: pygame.Surface,
+    big_font: pygame.font.Font,
+    message_surf: pygame.Surface | None,
+    message_timer: int,
+    prompt_surf: pygame.Surface | None = None,
+) -> None:
     if message_timer > 0 and message_surf:
         text_rect = message_surf.get_rect(center=(WIDTH // 2, HEIGHT // 2 - 20))
         screen.blit(message_surf, text_rect)
