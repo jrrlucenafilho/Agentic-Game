@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import math
 import random
 
@@ -6,12 +8,12 @@ import pygame
 from ..config import WIDTH, HEIGHT, BG_COLOR
 
 
-_star_positions = []
-_saturn_surf = None
-_planet_surf = None
+_star_positions: list[tuple[int, int, int, int]] = []
+_saturn_surf: pygame.Surface | None = None
+_planet_surf: pygame.Surface | None = None
 
 
-def generate():
+def generate() -> None:
     global _star_positions, _saturn_surf, _planet_surf
     _star_positions = []
     for _ in range(250):
@@ -43,7 +45,6 @@ def generate():
     _saturn_surf = pygame.transform.scale(surf, (pw * 4, ph * 4))
     _saturn_surf.set_alpha(50)
 
-    # Pixel art planet surface at the bottom
     pixel = 8
     planet_h = 400
     surf = pygame.Surface((WIDTH, planet_h), pygame.SRCALPHA)
@@ -101,7 +102,7 @@ def generate():
     _planet_surf = surf
 
 
-def draw(screen):
+def draw(screen: pygame.Surface) -> None:
     screen.fill(BG_COLOR)
     for x, y, size, bright in _star_positions:
         shade = (bright, bright, bright)

@@ -8,7 +8,7 @@ Made while in an `Agentic Coding` class @ UFPB
 
 ```bash
 pip install pygame
-python game.py
+python main.py
 ```
 
 ## Controls

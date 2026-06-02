@@ -1,34 +1,38 @@
+from __future__ import annotations
+
 import math
+from typing import TYPE_CHECKING
 
 import pygame
 
+from ..config import (
+    ASTEROID_BODY,
+    ASTEROID_CRATER,
+    ASTEROID_EDGE,
+)
 
-ASTEROID_BODY = (70, 75, 80)
-ASTEROID_EDGE = (92, 96, 100)
-ASTEROID_SHADOW = (24, 26, 28)
-ASTEROID_CRATER = (18, 20, 22)
-ASTEROID_HIGHLIGHT = (110, 115, 120)
+if TYPE_CHECKING:
+    from .player import Player
 
 
 class Platform:
-    def __init__(self, x, y, shape, rx, ry=None, angle=0):
+    def __init__(
+        self, x: float, y: float, shape: str, rx: int, ry: int | None = None, angle: float = 0
+    ) -> None:
         self.x = x
         self.y = y
         self.shape = shape
         self.angle = angle
         self.rx = rx
         self.ry = ry if ry is not None else rx
-        if shape == "circle":
-            self.radius = rx
-        else:
-            self.radius = max(rx, ry)
+        self.radius = rx if shape == "circle" else max(rx, self.ry)
         self.gravity_strength = 0.6
         self.gravity_range = self.radius * 3
         self._seed = int(x * 1009 + y * 7) & 0x7FFFFFFF
         self.vx = 0.0
         self.vy = 0.0
 
-    def update(self):
+    def update(self) -> None:
         self.x += self.vx
         self.y += self.vy
         self.vx *= 0.82
@@ -38,21 +42,21 @@ class Platform:
         if abs(self.vy) < 0.1:
             self.vy = 0.0
 
-    def _noise(self, *args):
+    def _noise(self, *args: int) -> int:
         h = self._seed
         for a in args:
             h = (h * 1000003 + a) & 0x7FFFFFFF
         return h % 10000
 
-    def get_boundary_radius(self, world_angle):
+    def get_boundary_radius(self, world_angle: float) -> float:
         if self.shape == "circle":
-            return self.radius
+            return float(self.radius)
         local_angle = world_angle - self.angle
         c = math.cos(local_angle)
         s = math.sin(local_angle)
         return self.rx * self.ry / math.sqrt((self.ry * c) ** 2 + (self.rx * s) ** 2)
 
-    def point_inside(self, px, py):
+    def point_inside(self, px: float, py: float) -> bool:
         dx = px - self.x
         dy = py - self.y
         if self.shape == "circle":
@@ -63,19 +67,7 @@ class Platform:
         ly = -dx * s + dy * c
         return (lx / self.rx) ** 2 + (ly / self.ry) ** 2 <= 1
 
-    def apply_gravity(self, player):
-        dx = player.rect.centerx - self.x
-        dy = player.rect.centery - self.y
-        dist = math.sqrt(dx * dx + dy * dy)
-        if 0 < dist < self.gravity_range:
-            t = dist / self.gravity_range
-            force = self.gravity_strength * (1 - t * t)
-            player.vx -= force * dx / dist
-            player.vy -= force * dy / dist
-            return True
-        return False
-
-    def collide_player(self, player):
+    def collide_player(self, player: Player) -> None:
         if self.point_inside(player.rect.centerx, player.rect.centery):
             dx = player.rect.centerx - self.x
             dy = player.rect.centery - self.y
@@ -118,23 +110,30 @@ class Platform:
             if abs(nx) > 0.7:
                 player.on_wall = 1 if nx > 0 else -1
 
-    def draw(self, screen):
-        s = pygame.Surface((int(self.gravity_range) * 2, int(self.gravity_range) * 2), pygame.SRCALPHA)
-        pygame.draw.circle(s, (200, 205, 215, 60), (int(self.gravity_range), int(self.gravity_range)), int(self.gravity_range), 1)
-        screen.blit(s, (int(self.x - self.gravity_range), int(self.y - self.gravity_range)))
+    def draw(self, screen: pygame.Surface) -> None:
+        gs = pygame.Surface(
+            (int(self.gravity_range) * 2, int(self.gravity_range) * 2), pygame.SRCALPHA
+        )
+        pygame.draw.circle(
+            gs,
+            (200, 205, 215, 60),
+            (int(self.gravity_range), int(self.gravity_range)),
+            int(self.gravity_range),
+            1,
+        )
+        screen.blit(gs, (int(self.x - self.gravity_range), int(self.y - self.gravity_range)))
         if self.shape == "circle":
             self._draw_circle_asteroid(screen)
         else:
             self._draw_ellipse_asteroid(screen)
 
-    def _draw_circle_asteroid(self, screen):
+    def _draw_circle_asteroid(self, screen: pygame.Surface) -> None:
         r = self.radius
         cx, cy = int(self.x), int(self.y)
         n = self._noise
 
         pygame.draw.circle(screen, ASTEROID_BODY, (cx, cy), r)
 
-        # Rocky edge bumps
         for a in range(0, 360, 12):
             angle = math.radians(a + n(a) % 8 - 4)
             vr = r * (0.88 + (n(a, 1) % 200) / 2000)
@@ -145,7 +144,6 @@ class Platform:
             c = (ASTEROID_BODY[0] - dv, ASTEROID_BODY[1] - dv // 2, ASTEROID_BODY[2] - dv // 2)
             pygame.draw.circle(screen, c, (int(bx), int(by)), sz)
 
-        # Craters (pixel-art holes in the texture)
         pixel = 4
         for i in range(2 + n(0) % 3):
             a = math.radians(n(i, 0) % 360)
@@ -167,7 +165,7 @@ class Platform:
                     elif dist_sq < rim_out * rim_out:
                         screen.fill(ASTEROID_EDGE, (bx, by, pixel, pixel))
 
-    def _draw_ellipse_asteroid(self, screen):
+    def _draw_ellipse_asteroid(self, screen: pygame.Surface) -> None:
         max_r = int(max(self.rx, self.ry)) + 20
         surf = pygame.Surface((max_r * 2, max_r * 2))
         surf.fill((0, 0, 0))
@@ -178,7 +176,6 @@ class Platform:
 
         pygame.draw.ellipse(surf, ASTEROID_BODY, rect)
 
-        # Edge bumps in local space
         for a in range(0, 360, 15):
             local_a = math.radians(a)
             world_a = local_a + self.angle
@@ -191,7 +188,6 @@ class Platform:
             c = (ASTEROID_BODY[0] - dv, ASTEROID_BODY[1] - dv // 2, ASTEROID_BODY[2] - dv // 2)
             pygame.draw.circle(surf, c, (int(bx), int(by)), sz)
 
-        # Craters (pixel-art holes in the texture)
         pixel = 4
         for i in range(1 + n(1) % 3):
             a = math.radians(n(i, 3) % 360)

@@ -1,4 +1,7 @@
+from __future__ import annotations
+
 import math
+from typing import Dict, List, Tuple
 
 import pygame
 
@@ -20,10 +23,17 @@ from .projectile import LaserBeam, LightsaberSwipe
 
 
 class Player:
-    def __init__(self, x, y, color, controls, name):
+    def __init__(
+        self,
+        x: float,
+        y: float,
+        color: Tuple[int, int, int],
+        controls: Dict[str, int],
+        name: str,
+    ) -> None:
         self.rect = pygame.Rect(x, y, 28, 28)
-        self.vx = 0
-        self.vy = 0
+        self.vx = 0.0
+        self.vy = 0.0
         self.color = color
         self.controls = controls
         self.name = name
@@ -33,19 +43,24 @@ class Player:
         self.last_shot = 0
         self.facing = 1
         self.spawn_pos = (x, y)
-        self.ground_nx = 0
-        self.ground_ny = -1
-        self.gravity_nx = 0
-        self.gravity_ny = 0
+        self.ground_nx = 0.0
+        self.ground_ny = -1.0
+        self.gravity_nx = 0.0
+        self.gravity_ny = 0.0
         self.charging = False
         self.charge_angle = 0.0
         self.charge_dir = 1
-        self.aim_dir = (1, 0)
+        self.aim_dir = (1.0, 0.0)
         self.last_melee = 0
         self.transition_timer = 0
         self.movement_locked = False
 
-    def update(self, keys, platforms, planetoids=()):
+    def update(
+        self,
+        keys: List[bool],
+        platforms: List[pygame.sprite.Sprite],
+        planetoids: List[pygame.sprite.Sprite] = (),
+    ) -> None:
         if not self.alive:
             return
 
@@ -85,7 +100,6 @@ class Player:
 
         in_hover = gravity_field_count >= 2 and not self.on_ground
 
-        # Track transition from shared-gravity hover to single-gravity field
         if in_hover:
             self.transition_timer = 0
         elif (
@@ -99,7 +113,12 @@ class Player:
 
         blend = self.transition_timer / TRANSITION_DURATION
 
-        if self.movement_locked and not (keys[ctrl["left"]] or keys[ctrl["right"]] or keys[ctrl["up"]] or keys[ctrl["down"]]):
+        if self.movement_locked and not (
+            keys[ctrl["left"]]
+            or keys[ctrl["right"]]
+            or keys[ctrl["up"]]
+            or keys[ctrl["down"]]
+        ):
             self.movement_locked = False
 
         if self.on_ground:
@@ -190,9 +209,9 @@ class Player:
             self.vy += GRAVITY
 
         in_gravity_field = False
-        self.gravity_nx = 0
-        self.gravity_ny = 0
-        max_gravity_force = 0
+        self.gravity_nx = 0.0
+        self.gravity_ny = 0.0
+        max_gravity_force = 0.0
         for plat in platforms:
             dx = self.rect.centerx - plat.x
             dy = self.rect.centery - plat.y
@@ -248,16 +267,16 @@ class Player:
         if self.rect.y > HEIGHT + 100:
             self.die()
 
-    def get_forward_vector(self):
+    def get_forward_vector(self) -> Tuple[float, float]:
         return self.aim_dir
 
-    def get_aim_vector(self):
+    def get_aim_vector(self) -> Tuple[float, float]:
         tx, ty = self.get_forward_vector()
         fwd_angle = math.atan2(ty, tx)
         angle = fwd_angle + math.radians(self.charge_angle)
         return math.cos(angle), math.sin(angle)
 
-    def shoot(self):
+    def shoot(self) -> LaserBeam | None:
         now = pygame.time.get_ticks()
         if now - self.last_shot < ARROW_COOLDOWN:
             return None
@@ -269,7 +288,7 @@ class Player:
             beam_x, beam_y, ARROW_SPEED * tx, ARROW_SPEED * ty, self.color, self
         )
 
-    def melee(self):
+    def melee(self) -> LightsaberSwipe | None:
         now = pygame.time.get_ticks()
         if now - self.last_melee < MELEE_COOLDOWN:
             return None
@@ -284,7 +303,7 @@ class Player:
             self,
         )
 
-    def start_charge(self):
+    def start_charge(self) -> None:
         now = pygame.time.get_ticks()
         if now - self.last_shot < ARROW_COOLDOWN:
             return
@@ -292,7 +311,7 @@ class Player:
         self.charge_angle = 0.0
         self.charge_dir = 1
 
-    def update_charge(self):
+    def update_charge(self) -> None:
         if not self.charging:
             return
         self.charge_angle += self.charge_dir * 2.0
@@ -303,7 +322,7 @@ class Player:
             self.charge_angle = -22.5
             self.charge_dir = 1
 
-    def release_charge(self):
+    def release_charge(self) -> LaserBeam | None:
         if not self.charging:
             return None
         self.charging = False
@@ -312,29 +331,28 @@ class Player:
         self.movement_locked = True
         return self.shoot()
 
-    def die(self):
+    def die(self) -> List[Particle] | None:
         if not self.alive:
-            return
+            return None
         self.alive = False
-        particles = []
-        for _ in range(20):
-            particles.append(
-                Particle(
-                    self.rect.x + self.rect.w // 2,
-                    self.rect.y + self.rect.h // 2,
-                    self.color,
-                )
+        particles = [
+            Particle(
+                self.rect.x + self.rect.w // 2,
+                self.rect.y + self.rect.h // 2,
+                self.color,
             )
+            for _ in range(20)
+        ]
         return particles
 
-    def respawn(self):
+    def respawn(self) -> None:
         self.rect.x, self.rect.y = self.spawn_pos
         self.vx = 0
         self.vy = 0
         self.alive = True
         self.on_ground = False
 
-    def draw(self, screen):
+    def draw(self, screen: pygame.Surface) -> None:
         if not self.alive:
             return
 
@@ -345,8 +363,8 @@ class Player:
             tx = self.gravity_nx
             ty = self.gravity_ny
         else:
-            tx = 0
-            ty = 0
+            tx = 0.0
+            ty = 0.0
 
         if tx != 0 or ty != 0:
             surf_size = 40

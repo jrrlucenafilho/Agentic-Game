@@ -1,3 +1,5 @@
+from typing import Final
+
 WIDTH, HEIGHT = 1800, 1000
 TILE_SIZE = 32
 FPS = 60
@@ -11,16 +13,23 @@ MELEE_COOLDOWN = 600
 MELEE_RANGE = 50
 METEOR_START = 600
 
-# Frames to blend controls when transitioning from shared-gravity hover to single-gravity field
 TRANSITION_DURATION = 20
 
-WHITE = (255, 255, 255)
-BLACK = (0, 0, 0)
-BG_COLOR = (8, 10, 30)
-BG_DARK = (22, 33, 62)
-PLATFORM_COLOR = (74, 78, 105)
-PLATFORM_TOP = (154, 140, 152)
-PLATFORM_LINE = (34, 34, 59)
-ARROW_SHAFT = (139, 69, 19)
-ARROW_HEAD = (160, 82, 45)
-UFO_GREEN = (0, 255, 100)
+WHITE: Final = (255, 255, 255)
+BLACK: Final = (0, 0, 0)
+BG_COLOR: Final = (8, 10, 30)
+BG_DARK: Final = (22, 33, 62)
+PLATFORM_COLOR: Final = (74, 78, 105)
+PLATFORM_TOP: Final = (154, 140, 152)
+PLATFORM_LINE: Final = (34, 34, 59)
+ARROW_SHAFT: Final = (139, 69, 19)
+ARROW_HEAD: Final = (160, 82, 45)
+UFO_GREEN: Final = (0, 255, 100)
+
+ASTEROID_BODY: Final = (70, 75, 80)
+ASTEROID_EDGE: Final = (92, 96, 100)
+ASTEROID_CRATER: Final = (18, 20, 22)
+ASTEROID_SHADOW: Final = (24, 26, 28)
+ASTEROID_HIGHLIGHT: Final = (110, 115, 120)
+
+MISS: Final = object()

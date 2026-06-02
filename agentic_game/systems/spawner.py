@@ -1,5 +1,8 @@
+from __future__ import annotations
+
 import math
 import random
+from typing import List, Tuple
 
 import pygame
 
@@ -8,8 +11,8 @@ from ..entities.platform import Platform
 from ..entities.player import Player
 
 
-def create_platforms():
-    platforms = []
+def create_platforms() -> List[Platform]:
+    platforms: List[Platform] = []
     margin = 120
     min_dist = 200
     target = random.randint(10, 16)
@@ -42,8 +45,8 @@ def create_platforms():
     return platforms
 
 
-def init_players(platforms):
-    def spawn_top(plat):
+def init_players(platforms: List[Platform]) -> List[Player]:
+    def spawn_top(plat: Platform) -> Tuple[float, float]:
         angle = -math.pi / 2
         r = plat.get_boundary_radius(angle)
         cx = plat.x + math.cos(angle) * (r + 18)
@@ -58,7 +61,9 @@ def init_players(platforms):
 
     return [
         Player(
-            p1_x, p1_y, (255, 107, 107),
+            p1_x,
+            p1_y,
+            (255, 107, 107),
             {
                 "left": pygame.K_a,
                 "right": pygame.K_d,
@@ -70,7 +75,9 @@ def init_players(platforms):
             "P1",
         ),
         Player(
-            p2_x, p2_y, (78, 205, 196),
+            p2_x,
+            p2_y,
+            (78, 205, 196),
             {
                 "left": pygame.K_LEFT,
                 "right": pygame.K_RIGHT,

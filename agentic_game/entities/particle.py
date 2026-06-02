@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import random
 
 import pygame
@@ -6,7 +8,7 @@ from ..config import WHITE
 
 
 class Particle:
-    def __init__(self, x, y, color):
+    def __init__(self, x: float, y: float, color: tuple[int, int, int]) -> None:
         self.x = x
         self.y = y
         self.vx = random.uniform(-4, 4)
@@ -14,14 +16,14 @@ class Particle:
         self.life = 30
         self.color = color
 
-    def update(self):
+    def update(self) -> bool:
         self.x += self.vx
         self.y += self.vy
         self.vy += 0.2
         self.life -= 1
         return self.life > 0
 
-    def draw(self, screen):
+    def draw(self, screen: pygame.Surface) -> None:
         alpha = int(255 * (self.life / 30))
         s = pygame.Surface((4, 4), pygame.SRCALPHA)
         s.fill((*self.color, alpha))

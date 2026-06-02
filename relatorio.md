@@ -18,7 +18,7 @@ apenas sites simples com essas tecnologias.
 
 ---
 
-O modelo utilizado nesse momento é o `Qwen3.6 Plus` pelo `OpenCode` com reasoning set no `High`
+O modelo utilizado nesse momento é o `Qwen3.6 Plus` pelo `OpenCode` com reasoning set no `High` e utilizando as skills `andrej-karpathy-skills`.
 Iniciei com um prompt detalhando como deve ser o loop de gameplay do jogo, especificando os comportamento possíveis
 e as informações necessárias para construir uma forma simples do jogo, inspirado em jogos `Party` de múltiplos
 jogadores, em especial `Super Smash Bros.` e `Bopl Battle` e `DDTank`, mas com nossas personalizações a fim de trazer originalidade
@@ -307,5 +307,22 @@ respective player's color and should have a slightly translucent background
 ```
 
 Não foram necessários prompts extras, apenas modificamos a aparência levemente para adicionar bordas
+e fazer a explicação do que cada tecla faz
 
 # Seção 3: Conclusões e Comentários
+
+## Para quem não tinha experiência prévia com as tecnologias usadas e/ou o desenvolvimento
+## de jogos, vocês acham que essa falta de experiência teve impacto no desenvolvimento do
+## projeto? Caso fossem continuar esse projeto, pensam que seria necessário estudar mais
+## sobre as tecnologias e/ou sobre desenvolvimento de jogos em geral?
+
+## O que aprenderam durante o desenvolvimento do projeto? Conseguiriam fazer um projeto
+## similar sem o uso de agentes de codificação?
+
+## Olhando o código da versão final, acham que o resultado é legível? Seria fácil de manter
+## no futuro? Acham que seria necessário refatorar o código?
+
+## Já comentamos sobre o conceito de déficit de compreensão (comprehension debt). Sentem que
+## entendem o projeto que foi gerado? Se fosse necessário fazer mais modificações, conse
+## guiriam fazer alterações sem usar agentes? Como conseguem julgar se uma modificação
+## pedida ao agente foi bem sucedida?

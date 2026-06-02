@@ -1,18 +1,27 @@
+from __future__ import annotations
+
 import math
 import random
+from typing import TYPE_CHECKING
 
 import pygame
 
-from ..config import WIDTH, HEIGHT
+from ..config import (
+    ASTEROID_BODY,
+    ASTEROID_CRATER,
+    ASTEROID_EDGE,
+    HEIGHT,
+    WIDTH,
+)
 from .particle import Particle
 
-ASTEROID_BODY = (70, 75, 80)
-ASTEROID_EDGE = (92, 96, 100)
-ASTEROID_CRATER = (18, 20, 22)
+if TYPE_CHECKING:
+    from .player import Player
+    from .platform import Platform
 
 
 class Planetoid:
-    def __init__(self, mode="falling"):
+    def __init__(self, mode: str = "falling") -> None:
         self.mode = mode
         self.health = 1 if mode == "falling" else 3
 
@@ -40,7 +49,9 @@ class Planetoid:
                 self.num_spikes = max(8, self.size // 3)
                 self.spike_half_angle = math.pi / self.num_spikes * 0.8
                 step = 2 * math.pi / self.num_spikes
-                self.spike_angles = [i * step + random.uniform(-0.12, 0.12) for i in range(self.num_spikes)]
+                self.spike_angles = [
+                    i * step + random.uniform(-0.12, 0.12) for i in range(self.num_spikes)
+                ]
         else:
             self.shape = "circle"
             self.rx = self.ry = random.randint(6, 16)
@@ -57,15 +68,15 @@ class Planetoid:
         self.rect.center = (int(self.x), int(self.y))
         self.done = False
 
-    def get_boundary_radius(self, world_angle):
+    def get_boundary_radius(self, world_angle: float) -> float:
         if self.shape == "circle":
-            return self.size
+            return float(self.size)
         local_angle = world_angle - self.angle
         c = math.cos(local_angle)
         s = math.sin(local_angle)
         return self.rx * self.ry / math.sqrt((self.ry * c) ** 2 + (self.rx * s) ** 2)
 
-    def point_inside(self, px, py):
+    def point_inside(self, px: float, py: float) -> bool:
         dx = px - self.x
         dy = py - self.y
         if self.shape == "circle":
@@ -76,13 +87,15 @@ class Planetoid:
         ly = -dx * s + dy * c
         return (lx / self.rx) ** 2 + (ly / self.ry) ** 2 <= 1
 
-    def _noise(self, *args):
+    def _noise(self, *args: int) -> int:
         h = self._seed
         for a in args:
             h = (h * 1000003 + a) & 0x7FFFFFFF
         return h % 10000
 
-    def update(self, platforms, players):
+    def update(
+        self, platforms: list[Platform], players: list[Player]
+    ) -> list[Particle] | None:
         if self.done:
             return None
 
@@ -125,9 +138,7 @@ class Planetoid:
 
             for plat in platforms:
                 if plat.point_inside(self.x, self.y):
-                    parts = []
-                    for _ in range(15):
-                        parts.append(Particle(self.x, self.y, (255, 140, 40)))
+                    parts = [Particle(self.x, self.y, (255, 140, 40)) for _ in range(15)]
                     self.done = True
                     return parts
 
@@ -137,9 +148,7 @@ class Planetoid:
             for player in players:
                 if player.alive and self.rect.colliderect(player.rect):
                     result = player.die()
-                    parts = []
-                    for _ in range(15):
-                        parts.append(Particle(self.x, self.y, (255, 140, 40)))
+                    parts = [Particle(self.x, self.y, (255, 140, 40)) for _ in range(15)]
                     if result:
                         parts.extend(result)
                     self.done = True
@@ -147,25 +156,11 @@ class Planetoid:
 
         if self.mode == "falling" and self.y > HEIGHT + 100:
             self.done = True
-            return "miss"
+            return None
 
         return None
 
-    def apply_gravity(self, player):
-        if self.mode != "moving" or self.done:
-            return False
-        dx = player.rect.centerx - self.x
-        dy = player.rect.centery - self.y
-        dist = math.sqrt(dx * dx + dy * dy)
-        if 0 < dist < self.gravity_range:
-            t = dist / self.gravity_range
-            force = self.gravity_strength * (1 - t * t)
-            player.vx -= force * dx / dist
-            player.vy -= force * dy / dist
-            return True
-        return False
-
-    def collide_player(self, player):
+    def collide_player(self, player: Player) -> None:
         if self.mode != "moving" or self.done:
             return
 
@@ -206,18 +201,15 @@ class Planetoid:
             if abs(nx) > 0.7:
                 player.on_wall = 1 if nx > 0 else -1
 
-    def hit(self, damage=1):
+    def hit(self, damage: int = 1) -> list[Particle] | None:
         self.health -= damage
         if self.health <= 0:
             self.done = True
-            parts = []
             color = (100, 105, 110) if self.mode == "moving" else (255, 140, 40)
-            for _ in range(20):
-                parts.append(Particle(self.x, self.y, color))
-            return parts
+            return [Particle(self.x, self.y, color) for _ in range(20)]
         return None
 
-    def draw(self, screen):
+    def draw(self, screen: pygame.Surface) -> None:
         if self.done:
             return
 
@@ -226,8 +218,16 @@ class Planetoid:
         if self.mode == "moving":
             n = self._noise
 
-            gs = pygame.Surface((int(self.gravity_range) * 2, int(self.gravity_range) * 2), pygame.SRCALPHA)
-            pygame.draw.circle(gs, (200, 205, 215, 60), (int(self.gravity_range), int(self.gravity_range)), int(self.gravity_range), 1)
+            gs = pygame.Surface(
+                (int(self.gravity_range) * 2, int(self.gravity_range) * 2), pygame.SRCALPHA
+            )
+            pygame.draw.circle(
+                gs,
+                (200, 205, 215, 60),
+                (int(self.gravity_range), int(self.gravity_range)),
+                int(self.gravity_range),
+                1,
+            )
             screen.blit(gs, (int(self.x - self.gravity_range), int(self.y - self.gravity_range)))
 
             if self.shape == "circle":
@@ -242,7 +242,11 @@ class Planetoid:
                     by = cy + math.sin(angle) * vr
                     sz = max(2, r // 10)
                     dv = n(a, 3) % 18
-                    c = (ASTEROID_BODY[0] - dv, ASTEROID_BODY[1] - dv // 2, ASTEROID_BODY[2] - dv // 2)
+                    c = (
+                        ASTEROID_BODY[0] - dv,
+                        ASTEROID_BODY[1] - dv // 2,
+                        ASTEROID_BODY[2] - dv // 2,
+                    )
                     pygame.draw.circle(screen, c, (int(bx), int(by)), sz)
 
                 pixel = 4
@@ -279,11 +283,19 @@ class Planetoid:
                         hw = 3
                         bl = (bx + math.cos(pa) * hw, by + math.sin(pa) * hw)
                         br2 = (bx - math.cos(pa) * hw, by - math.sin(pa) * hw)
-                        pygame.draw.polygon(screen, (180, 60, 60), [(int(tx), int(ty)), (int(bl[0]), int(bl[1])), (int(br2[0]), int(br2[1]))])
-                        pygame.draw.polygon(screen, (220, 100, 100), [(int(tx), int(ty)), (int(bl[0]), int(bl[1])), (int(br2[0]), int(br2[1]))], 1)
+                        pygame.draw.polygon(
+                            screen,
+                            (180, 60, 60),
+                            [(int(tx), int(ty)), (int(bl[0]), int(bl[1])), (int(br2[0]), int(br2[1]))],
+                        )
+                        pygame.draw.polygon(
+                            screen,
+                            (220, 100, 100),
+                            [(int(tx), int(ty)), (int(bl[0]), int(bl[1])), (int(br2[0]), int(br2[1]))],
+                            1,
+                        )
             else:
                 max_r = int(self.size) + 20
-
 
                 surf = pygame.Surface((max_r * 2, max_r * 2))
                 surf.fill((0, 0, 0))
@@ -302,7 +314,11 @@ class Planetoid:
                     by = lcy + math.sin(local_a) * vr
                     sz = max(2, int(br // 8))
                     dv = n(a, 9) % 18
-                    c = (ASTEROID_BODY[0] - dv, ASTEROID_BODY[1] - dv // 2, ASTEROID_BODY[2] - dv // 2)
+                    c = (
+                        ASTEROID_BODY[0] - dv,
+                        ASTEROID_BODY[1] - dv // 2,
+                        ASTEROID_BODY[2] - dv // 2,
+                    )
                     pygame.draw.circle(surf, c, (int(bx), int(by)), sz)
 
                 pixel = 4
@@ -339,8 +355,17 @@ class Planetoid:
                         hw = 3
                         bl = (bx + math.cos(pa) * hw, by + math.sin(pa) * hw)
                         br2 = (bx - math.cos(pa) * hw, by - math.sin(pa) * hw)
-                        pygame.draw.polygon(surf, (180, 60, 60), [(int(tx), int(ty)), (int(bl[0]), int(bl[1])), (int(br2[0]), int(br2[1]))])
-                        pygame.draw.polygon(surf, (220, 100, 100), [(int(tx), int(ty)), (int(bl[0]), int(bl[1])), (int(br2[0]), int(br2[1]))], 1)
+                        pygame.draw.polygon(
+                            surf,
+                            (180, 60, 60),
+                            [(int(tx), int(ty)), (int(bl[0]), int(bl[1])), (int(br2[0]), int(br2[1]))],
+                        )
+                        pygame.draw.polygon(
+                            surf,
+                            (220, 100, 100),
+                            [(int(tx), int(ty)), (int(bl[0]), int(bl[1])), (int(br2[0]), int(br2[1]))],
+                            1,
+                        )
 
                 rotated = pygame.transform.rotate(surf, -math.degrees(self.angle))
                 r_rect = rotated.get_rect(center=(self.x, self.y))
