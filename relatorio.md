@@ -6,7 +6,8 @@
 
 Possuo experiência no domínio de desenvolvimento de jogos em C++, tendo feito alguns jogos nessa
 linguagem com frameworks custom. Possuo pouca experiência com HMTL/Javascript/Typescript, tendo feito
-apenas sites simples com essas tecnologias.
+apenas sites simples com essas tecnologias. Já com a biblioteca pygame utilizada aqui, tenho
+pouca experiência, apenas em tutoriais.
 
 ## Nome: João Viana+
 
@@ -319,7 +320,7 @@ Prompt:
 
 ```
 Check the codebase file structure and individual files.
-Is the code clean? Can it be refactored any better? What about it's formatting?
+Is the code clean? Can it be refactored any better? Evaluate it's formatting
 ```
 
 # Seção 3: Conclusões e Comentários
@@ -329,13 +330,61 @@ Is the code clean? Can it be refactored any better? What about it's formatting?
 ## projeto? Caso fossem continuar esse projeto, pensam que seria necessário estudar mais
 ## sobre as tecnologias e/ou sobre desenvolvimento de jogos em geral?
 
+Tendo alguma experiência prévia com pygame, consigo ver os padrões do game loop. Mas em detalhes específicos
+como a forma que o agente decidiu implementar a dinâmica de gravidades e como elas interagem entre si através da biblioteca.
+Coisas como colisões e geração de partículas utilizando pygame, e não saber como essas coisas podem ser feitas certamente afetou na qualidade do
+código e nos algoritmos usados, já que o agente não pensa profundamente nos pros/cons de cada abordagem para essas coisas sempre, apenas se for
+explicitamente pedido a fazer isso.
+
+Caso continuássemos o projeto, seria importantíssimo diminuir a dívida técnica. o que significa olhar a documentação da biblioteca pygame
+e revisar os algoritmos ustilizados pelo agente. Mas, ao chegar nesse ponto, seria viável continuar o desenvolvimento do projeto
+de forma mais manual.
+
 ## O que aprenderam durante o desenvolvimento do projeto? Conseguiriam fazer um projeto
 ## similar sem o uso de agentes de codificação?
 
+Um aprendizado importante foi a seriedade da dívida técnica, pois deixar que o agente faça certas partes do código e não revisar
+desde que a parte delegada ao agente funcione corretamente deixa todas essas partes como uma black box, o que não é de forma alguma escalável para
+projetos maiores.
+Outro comportamento aprendido é que os agentes, mesmo com `thinking` alto, tendem a ser bem orientados a objetivos, como se sue approach fosse
+"Desde que funcione está correto", e isso é péssimo para a qualidade e manutenabilidade do código aolongo prazo. Mas algo que têm ajudado é
+espcificar a estrutura desejada e perguntar periodicamente sobre o estado do código e sore possíveis refatorações, não parece ser tão efetivo
+para a manutenabilidade do código quanto em uma programação manual. Mas fazer isso ajudou bastante na manutenabilidade.
+Como projeto de disciplina, é plausível, sim, fazer um projeto similar (acabando até provavelmente com menos refatorações necessárias). Mas
+seria necssário aprender sobre as bibliotecas usadas juntamente. Portanto é inegável que os agentes podem acelerar esse processo.
+
 ## Olhando o código da versão final, acham que o resultado é legível? Seria fácil de manter
 ## no futuro? Acham que seria necessário refatorar o código?
+
+Devido aos prompts periódicos, o código até que ficou mais bem estrututrado do que no início.
+Mas é necessaŕio fazer esses pedidos constantemente á medida que vai se adicionando novas features, pois o agente é tende a só fazer
+o que é pedido e acaba ignorando as boas práticas se não for direcionado a seguí-las.
+Por exemplo, antes da primeira refatoração o código estava inteiramente monolítico em um arquivo só, com lógica misturada, não isolada em classes,
+sem separação de responsabilidades e com números mágicos, ou seja, menos que ideal no quesito de manutenabilidade.
+Mas com refatorações periódicas (e as vezes manuais), foi possível sanar boa parte desses problemas.
 
 ## Já comentamos sobre o conceito de déficit de compreensão (comprehension debt). Sentem que
 ## entendem o projeto que foi gerado? Se fosse necessário fazer mais modificações, conse
 ## guiriam fazer alterações sem usar agentes? Como conseguem julgar se uma modificação
 ## pedida ao agente foi bem sucedida?
+
+Como disse antes, partes do projetos que funcionaram "de primeira" viram blackboxes se não forem verificadas, e o déficit de compreensão se aloja principalmente
+nessas partes. Após pedir por refatorações do código é possível compreender as partes que foram mais abordadas (principalmente as que mais precisaram ser refeitas e
+que precisaram de prompts adicionais, pois simplesmente foram mais visitadas). Portanto, nessas partes que necessitaram de maior interenção seria possível, sim, fazer mais modificações.
+Já em partes em qua isso não ocorreu, modificações só seriam viáveis após checar os algoritmos e como eles se integram com outra spartes do código.
+Mas com certeza os periódicos prompts de refatoração e code cleanliness foram de imensa ajuda, pois a divisão do cóigo em partes com responsabilididades únicas
+(ou pelo menos em partes com o mínimo sensível de responsabilidades) ajudaria muito em modificações futuras, pois com o código mais modularizado fica muito mais fácil saber
+onde deverão ser feitas mudanças futuras, tanto para features quanto para correções ou modificações. Isso mostra que diretamente se preocupar com o refatoramento
+do código de forma periódica ajuda bastante na compreensão e manutenabilidade futura, podendo ser uma maneira de facilitar a revisão do código e atenua o déficit de compreensão.
+
+Nas partes que conhecemos é possível apenas checando o código. Mas em partes do código que envolvem funções que desconhecemos, só há saídas como perguntar ao
+agente os motivos de cada mudança no código, e as motivações de cada escolha, mas isso é bem sensível a alucinações, principalmente em sessões distantes uma da outra e
+em modelos com janela de contexto pequenas.
+Portanto, para atenuar isso em partes do código que não conhecemos, foi pensado, por exemplo, permitir que o agente busque online, tanto em pesquisas
+na internet quanto especificamente entregando documentação, seja em sites ou documentos (claro que sendo o mais específico possível para lidar com
+as limitações da janela de contexto), isso ajuda o modelo a explicar suas escolhar, e muitas vezes até a se corrigir em decisões passadas.
+Claro que isso não é uma garantia de que uma mudança foi bem sucedida, mas é uma solução relativamente útil, que ao juntarmos com a aplicação de testes
+pelo modelo, diminui a surface area de erros significativamente. Ou seja, no melhor caso (conhecemos as tecnologias) revisamos o código. Mas em casos em
+que isso não é verdade, oferecer documentação das tecnologias ao agente + pedir para rever suas escolhas + refatoração periódica + fazer testes para
+cada nova adição/modificação + revisão por outro agente têm sido uma maneira razoável de verificar se as mudanças foram bem sucedidas, claro que mesmo assim ainda não se compara
+à revisão manual, mas considerando os pros/cons, esse têm sido um workflow sólido para esse tipo de trabalho.
