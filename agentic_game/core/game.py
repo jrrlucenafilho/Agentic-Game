@@ -91,7 +91,9 @@ class Game:
         alive = [p for p in state.players if p.alive]
         if len(alive) <= 1:
             winner = alive[0].name if alive else "DRAW"
-            self._show_message(f"{winner} WINS!" if alive else "DRAW!", ROUND_END_MSG_DURATION)
+            self._show_message(
+                f"{winner} WINS!" if alive else "DRAW!", ROUND_END_MSG_DURATION
+            )
             state.round_ended = True
 
     def _reset_round(self, new_round_num: int, reset_scores: bool = False) -> None:
@@ -111,7 +113,12 @@ class Game:
         state.round_timer = 0
         state.round_ended = False
         state.planetoids.extend(
-            [Planetoid(mode="moving") for _ in range(random.randint(INITIAL_PLANETOID_MIN, INITIAL_PLANETOID_MAX))]
+            [
+                Planetoid(mode="moving")
+                for _ in range(
+                    random.randint(INITIAL_PLANETOID_MIN, INITIAL_PLANETOID_MAX)
+                )
+            ]
         )
         self._show_message(f"ROUND {state.round_num}", ROUND_START_MSG_DURATION)
 
@@ -241,15 +248,17 @@ class Game:
                     self._check_round_end()
                 continue
             if self._hit_ufos(
-                lambda u: (u.rect.centerx - swipe.x) ** 2
-                + (u.rect.centery - swipe.y) ** 2
-                <= swipe.range * swipe.range
+                lambda u: (
+                    (u.rect.centerx - swipe.x) ** 2 + (u.rect.centery - swipe.y) ** 2
+                    <= swipe.range * swipe.range
+                )
             ):
                 continue
             if self._hit_planetoids(
-                lambda p: (p.rect.centerx - swipe.x) ** 2
-                + (p.rect.centery - swipe.y) ** 2
-                <= swipe.range * swipe.range
+                lambda p: (
+                    (p.rect.centerx - swipe.x) ** 2 + (p.rect.centery - swipe.y) ** 2
+                    <= swipe.range * swipe.range
+                )
             ):
                 continue
             alive.append(swipe)
@@ -326,12 +335,20 @@ class Game:
         if (
             state.round_timer > METEOR_START
             and state.round_timer
-            % max(METEOR_FALL_INTERVAL_BASE, METEOR_FALL_INTERVAL_MAX - (state.round_timer - METEOR_START) // METEOR_FALL_INTERVAL_DECAY)
+            % max(
+                METEOR_FALL_INTERVAL_BASE,
+                METEOR_FALL_INTERVAL_MAX
+                - (state.round_timer - METEOR_START) // METEOR_FALL_INTERVAL_DECAY,
+            )
             == 0
         ):
             state.planetoids.append(Planetoid(mode="falling"))
 
-        moving_chance = min(MOVING_PLANETOID_MAX_CHANCE, MOVING_PLANETOID_BASE_CHANCE + state.round_num * MOVING_PLANETOID_CHANCE_PER_ROUND)
+        moving_chance = min(
+            MOVING_PLANETOID_MAX_CHANCE,
+            MOVING_PLANETOID_BASE_CHANCE
+            + state.round_num * MOVING_PLANETOID_CHANCE_PER_ROUND,
+        )
         if (
             random.random() < moving_chance
             and state.round_timer > MOVING_PLANETOID_START_TIME
@@ -342,7 +359,11 @@ class Game:
         if (
             state.round_timer > METEOR_START
             and state.round_timer
-            % max(UFO_SPAWN_INTERVAL_BASE, UFO_SPAWN_INTERVAL_MAX - (state.round_timer - METEOR_START) // UFO_SPAWN_INTERVAL_DECAY)
+            % max(
+                UFO_SPAWN_INTERVAL_BASE,
+                UFO_SPAWN_INTERVAL_MAX
+                - (state.round_timer - METEOR_START) // UFO_SPAWN_INTERVAL_DECAY,
+            )
             == 0
             and random.random() < UFO_SPAWN_CHANCE
             and state.ufo_respawn_timer <= 0
@@ -398,7 +419,9 @@ class Game:
                         for _ in range(PLANETOID_COLLISION_PARTICLES):
                             mx = (a.x + b.x) / 2
                             my = (a.y + b.y) / 2
-                            state.particles.append(Particle(mx, my, PLANETOID_COLLISION_COLOR))
+                            state.particles.append(
+                                Particle(mx, my, PLANETOID_COLLISION_COLOR)
+                            )
         state.planetoids = alive
 
     def _update_platforms(self) -> None:
