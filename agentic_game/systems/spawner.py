@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import colorsys
 import math
 import random
 from typing import List, Tuple
@@ -9,6 +10,48 @@ import pygame
 from ..config import WIDTH, HEIGHT
 from ..entities.platform import Platform
 from ..entities.player import Player
+
+
+def spawn_top(plat: Platform) -> Tuple[float, float]:
+    """Top-left corner of a player standing on top of a platform."""
+    angle = -math.pi / 2
+    r = plat.get_boundary_radius(angle)
+    cx = plat.x + math.cos(angle) * (r + 18)
+    cy = plat.y + math.sin(angle) * (r + 18)
+    return cx - 12, cy - 12
+
+
+def random_spawn(platforms: List[Platform]) -> Tuple[float, float]:
+    if not platforms:
+        return WIDTH / 2, HEIGHT / 2
+    return spawn_top(random.choice(platforms))
+
+
+def spawn_points(platforms: List[Platform], n: int) -> List[Tuple[float, float]]:
+    """Spread n spawn points across the arena, sorted left to right."""
+    if not platforms:
+        return [(WIDTH / 2, HEIGHT / 2) for _ in range(n)]
+    by_x = sorted(platforms, key=lambda p: p.x)
+    points = []
+    for i in range(n):
+        frac = (i + 0.5) / max(1, n)
+        idx = min(len(by_x) - 1, int(frac * len(by_x)))
+        points.append(spawn_top(by_x[idx]))
+    return points
+
+
+def random_color() -> Tuple[int, int, int]:
+    """A bright, saturated random color so each player is easy to tell apart."""
+    r, g, b = colorsys.hsv_to_rgb(random.random(), 0.65, 1.0)
+    return (int(r * 255), int(g * 255), int(b * 255))
+
+
+# Placeholder controls for network-driven players (input is set straight from
+# the wire, so these key bindings are never actually read).
+NETWORK_CONTROLS = {
+    "left": pygame.K_a, "right": pygame.K_d, "up": pygame.K_w,
+    "down": pygame.K_s, "shoot": pygame.K_f, "melee": pygame.K_g,
+}
 
 
 def create_platforms() -> List[Platform]:
@@ -46,13 +89,6 @@ def create_platforms() -> List[Platform]:
 
 
 def init_players(platforms: List[Platform]) -> List[Player]:
-    def spawn_top(plat: Platform) -> Tuple[float, float]:
-        angle = -math.pi / 2
-        r = plat.get_boundary_radius(angle)
-        cx = plat.x + math.cos(angle) * (r + 18)
-        cy = plat.y + math.sin(angle) * (r + 18)
-        return cx - 12, cy - 12
-
     by_x = sorted(platforms, key=lambda p: p.x)
     idx1 = max(0, len(by_x) // 4 - 1)
     idx2 = min(len(by_x) - 1, 3 * len(by_x) // 4)

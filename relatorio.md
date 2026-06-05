@@ -323,6 +323,160 @@ Check the codebase file structure and individual files.
 Is the code clean? Can it be refactored any better? Evaluate it's formatting
 ```
 
+## Novas Features (modelo `Claude Opus 4.8` via `Claude Code`)
+
+As features a seguir foram desenvolvidas numa etapa posterior, agora com o modelo
+`Claude Opus 4.8` através do `Claude Code`. O fluxo foi mais conversacional e
+iterativo: a cada pedido o agente lia o código relevante, implementava as mudanças e
+validava com testes automatizados (suíte `unittest` e *smoke tests* headless com
+`SDL_VIDEODRIVER=dummy`) antes de devolver o resultado.
+
+Antes de implementar qualquer coisa, pedimos para o agente entender o projeto e
+levantar pontos de melhoria.
+
+Prompts:
+
+```
+da uma lida no repositorio e entenda o jogo
+```
+
+```
+quais pontos de melhorias podemos aplicar
+```
+
+O agente leu a estrutura completa do pacote `agentic_game` e devolveu um resumo da
+arquitetura, e em seguida apontou bugs reais (placar contando só mortes por laser;
+morte por queda sem partículas; código morto como `respawn()` e `on_wall`; default
+mutável errado), além de melhorias de gameplay, qualidade de código, testes e tooling,
+organizadas por prioridade.
+
+## Feat 11: Correção da Espada, Áudio 8-bit e Partículas (branch `feat11/black_holes`)
+
+Prompt:
+
+```
+melhore a funcionalidade da espada, percebo que ela ainda ta um pouco bugada,
+as vezes fica sozinha no espaço sem acompanhar o player, e as vezes ela nao vai
+na direção que o player ta olhando, adicione sons basicos 8bit ao jogo e umas
+particulas de movimento, de tiro e da espada tbm
+```
+
+Sobre a espada (`LightsaberSwipe`): o bug de "ficar sozinha no espaço" acontecia
+porque ela guardava a posição `x/y` fixa no momento da criação e nunca acompanhava o
+jogador — a correção fez o golpe seguir o centro do dono (`owner.rect.center`) a cada
+frame. Já o bug de "não ir na direção que olha" vinha do `aim_dir` apontar para os
+eixos do mundo enquanto, no chão, o jogador anda pela *tangente* da superfície curva do
+asteroide; a correção fez o `aim_dir` (em `_move_on_ground`) acompanhar a tangente real
+do movimento, de modo que a espada e a mira do laser vão exatamente para onde o jogador
+se desloca, mesmo em superfícies inclinadas.
+
+Para o áudio, o agente optou por **sintetizar os sons em runtime** (`systems/audio.py`,
+novo) usando ondas quadradas/ruído com envelope e *sweep* de pitch, evitando a
+necessidade de arquivos `.wav`. Foram criados `shoot`, `sword`, `hit`, `explode`,
+`clash` e `jump`; o módulo é à prova de falha (sem dispositivo de áudio, as chamadas
+viram *no-op* silenciosas). A classe `Particle` foi estendida com parâmetros opcionais
+(velocidade, vida, tamanho, gravidade) sem quebrar as chamadas antigas, mais helpers
+`burst()` e `directional()`, ligando rastro de propulsão, explosão ao pular, jato na
+boca do laser e leque no arco da espada. Os 27 testes seguiram passando e um *smoke
+test* headless confirmou a espada acompanhando o jogador e os sons sintetizados.
+
+## Feat 12: Buracos Negros (branch `feat11/black_holes`)
+
+Prompt:
+
+```
+agora quero adicionar tipos de buracos negros no jogo, um que teleporta o jogador,
+e um que joga numa direção aleatoria, coloca um som bem diferenciado pros buracs
+negros e umas particulas tanto na entrada quanto na saida
+```
+
+O agente criou a entidade `BlackHole` (`entities/black_hole.py`) com dois tipos: o de
+**teleporte** (roxo), que suga e reposiciona o jogador num ponto aleatório do mapa
+evitando plataformas/outros buracos (`_find_warp_destination`), e o de **slingshot**
+(laranja), que arremessa o jogador numa direção aleatória. Ambos têm sucção
+gravitacional num raio (`pull_range`) e um *event horizon* central que dispara o efeito,
+com disco de acreção giratório, e surgem/colapsam dinamicamente soltando partículas.
+Para o som, foi adicionado *vibrato* ao gerador de tons, criando `warp` (warble
+ascendente) para o teleporte e `launch` (whoosh descendente) para o slingshot. As
+partículas de entrada (implosão) e saída (no destino ou na direção do arremesso) foram
+implementadas, além de um `warp_cooldown` no jogador para impedir re-sucção em cadeia.
+Tudo foi parametrizado em `config.py`. O *smoke test* confirmou teleporte, slingshot,
+sucção e 400 frames de loop completo sem erros.
+
+## Feat 13: Multiplayer Online (branch `feat12/multiplayer`)
+
+Antes de implementar, houve uma pergunta de viabilidade sobre usar ngrok:
+
+```
+da pra eu usar o ngrok pra subir um link na nuvem que quando alguem acessar a
+pessoa entra na sala ? (so responda sim ou nao, quero faze rum batle royale disso)
+```
+
+O agente respondeu **não**, explicando que o ngrok apenas expõe uma porta local e não
+transforma um jogo Pygame em algo jogável pelo navegador — para multiplayer real é
+preciso uma arquitetura cliente-servidor, e o ngrok seria, no máximo, a peça que expõe
+esse servidor à internet. Em seguida veio o pedido de implementação:
+
+```
+torne o jogo multiplayer, para isso ao entrar no jogo deve ter um menu de jogar
+local e jogar online, na parte online ele ja procura pelo servido que vou montar
+com ngrok
+```
+
+O agente adotou um modelo **cliente-servidor autoritativo**: um servidor headless roda
+a simulação inteira (fonte única da verdade) e os clientes só enviam inputs e recebem o
+estado para renderizar, optando por **sincronização de estado** (em vez de lockstep
+determinístico) por ser mais robusto diante do uso intenso de `random` e
+`pygame.time.get_ticks()`. As principais mudanças: abstração de input (cada `Player` com
+um dict `self.input`, alimentado pelo teclado local ou pela rede, com `Game._simulate()`
+compartilhado); serialização (`network/serialize.py`) que gera um *snapshot* JSON e
+reconstrói "view objects" no cliente reusando os mesmos `draw()` (inclusive a aparência
+procedural dos asteroides, via `seed` armazenado); protocolo TCP com prefixo de tamanho
+(`network/protocol.py`); servidor e cliente (`network/server.py`, `server.py`,
+`network/client.py`); e o menu **Jogar Local / Jogar Online / Sair** (`core/menu.py`,
+`core/app.py`), com o cliente procurando o servidor via `server.txt` ou a env var
+`AGENTIC_SERVER`. Um teste de integração por loopback confirmou o round-trip de
+input/estado e a renderização das views headless.
+
+Ao subir o servidor pela primeira vez surgiu um erro real
+(`AttributeError: 'Planetoid' object has no attribute 'gravity_range'`): planetoides do
+tipo *falling* não têm `gravity_range` (atributo só dos *moving*). A serialização foi
+corrigida com `getattr(...)` e o agente rodou uma simulação longa (1100+ frames) para
+blindar outros atributos faltando em caminhos tardios da partida.
+
+## Feat 14: Battle Royale, Remoção do Placar e Otimização do Servidor (branch `feat12/multiplayer`)
+
+Prompt:
+
+```
+ok, agora seguinte, no modulo online remova o layout de pontuação, e permita que
+varios jogadores joguem ao esmo tempo, de maneira que quando enttrar um novo jogador
+ele venha com um passaro de cor aleatoria, assim entram uantos jogadores quiserem,
+o servidor ta dando um pouco de lag se conseguir verificar as coisas muito pesadas
+tbm fica bom
+```
+
+O agente atuou em três frentes. Para o **battle royale (N jogadores)**: qualquer número
+de clientes pode entrar, cada conexão *spawna* seu próprio jogador com **cor aleatória**
+(distintas entre si) e nome `P1`, `P2`...; *join/leave* é dinâmico (cada jogador tem um
+`pid` estável, e o cliente mostra "VOCE = Px" na sua cor); o `_check_round_end` foi
+generalizado para N jogadores (exigindo ≥2 para a partida valer) e o `_reset_round`
+ganhou um modo gerenciado que mantém os mesmos objetos `Player` (preservando as
+referências dos clientes) apenas reposicionando/revivendo. Para a **remoção do placar**:
+o HUD de pontuação não é mais desenhado no online, dando lugar a um discreto contador
+"Vivos: X / N" (o modo local mantém o placar normal). Para a **otimização de lag**: cada
+cliente passou a ter sua própria thread de envio que sempre manda o frame mais recente
+(um cliente lento não trava mais a simulação nem os demais — era o maior gargalo); o
+JSON é codificado uma única vez por frame e os mesmos bytes vão para todos; o broadcast
+caiu para 30 fps (simulação segue a 60 fps); e o cap de partículas na rede foi reduzido.
+
+Vale registrar uma interpretação: o avatar do jogo é um *slime* (personagem circular),
+então o agente implementou a parte concreta e verificável do pedido — cada novo jogador
+entra com **cor aleatória** — mantendo o sprite existente. Um teste de integração com 4
+clientes simultâneos confirmou cores distintas, *join* dinâmico, remoção ao desconectar
+(4 → 3) e fim de round com mensagem de vencedor, com o modo local intacto e os 27 testes
+seguindo verdes.
+
 # Seção 3: Conclusões e Comentários
 
 ## Para quem não tinha experiência prévia com as tecnologias usadas e/ou o desenvolvimento

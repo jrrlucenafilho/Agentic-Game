@@ -24,7 +24,8 @@ class Platform:
         self.radius = rx if shape == "circle" else max(rx, self.ry)
         self.gravity_strength = 0.6
         self.gravity_range = self.radius * 3
-        self._noise = make_noise_func(int(x * 1009 + y * 7) & 0x7FFFFFFF)
+        self.seed = int(x * 1009 + y * 7) & 0x7FFFFFFF
+        self._noise = make_noise_func(self.seed)
         self.vx = 0.0
         self.vy = 0.0
 

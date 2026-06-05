@@ -58,33 +58,44 @@ class Player:
         self.last_melee = 0
         self.transition_timer = 0
         self.movement_locked = False
+        self.jumped = False
+        self.warp_cooldown = 0
+        self.input = {
+            "left": False,
+            "right": False,
+            "up": False,
+            "down": False,
+            "shoot": False,
+            "melee": False,
+        }
 
     def update(
         self,
-        keys: List[bool],
         platforms: List[Platform],
         planetoids: List[Planetoid] = (),
     ) -> None:
         if not self.alive:
             return
-        self._update_aim_dir(keys)
+        if self.warp_cooldown > 0:
+            self.warp_cooldown -= 1
+        self._update_aim_dir()
         gravity_field_count, in_hover, blend = self._compute_gravity_state(platforms, planetoids)
-        self._handle_movement(keys, in_hover, blend, gravity_field_count)
+        self._handle_movement(in_hover, blend, gravity_field_count)
         self._apply_gravity_forces(platforms, planetoids, in_hover)
         self._apply_collisions_and_bounds(platforms, planetoids)
 
-    def _update_aim_dir(self, keys: List[bool]) -> None:
-        ctrl = self.controls
+    def _update_aim_dir(self) -> None:
+        inp = self.input
         ax, ay = 0, 0
-        if keys[ctrl["left"]]:
+        if inp["left"]:
             ax = -1
             self.facing = -1
-        elif keys[ctrl["right"]]:
+        elif inp["right"]:
             ax = 1
             self.facing = 1
-        if keys[ctrl["up"]]:
+        if inp["up"]:
             ay = -1
-        elif keys[ctrl["down"]]:
+        elif inp["down"]:
             ay = 1
         if ax != 0 or ay != 0:
             if ax != 0 and ay != 0:
@@ -120,70 +131,80 @@ class Player:
         return count, in_hover, self.transition_timer / TRANSITION_DURATION
 
     def _handle_movement(
-        self, keys: List[bool], in_hover: bool, blend: float, gravity_field_count: int
+        self, in_hover: bool, blend: float, gravity_field_count: int
     ) -> None:
-        ctrl = self.controls
+        inp = self.input
         if self.movement_locked and not (
-            keys[ctrl["left"]] or keys[ctrl["right"]] or keys[ctrl["up"]] or keys[ctrl["down"]]
+            inp["left"] or inp["right"] or inp["up"] or inp["down"]
         ):
             self.movement_locked = False
         if self.on_ground:
-            self._move_on_ground(keys, ctrl)
+            self._move_on_ground()
         elif in_hover or (blend < 1.0 and gravity_field_count == 1):
-            self._move_hovering(keys, ctrl, blend)
+            self._move_hovering(blend)
         else:
-            self._move_free(keys, ctrl)
+            self._move_free()
 
-    def _move_on_ground(self, keys: List[bool], ctrl: dict) -> None:
+    def _move_on_ground(self) -> None:
+        inp = self.input
         if self.charging or self.movement_locked:
             self.vx *= 0.8
             self.vy *= 0.8
             return
         tx = -self.ground_ny
         ty = self.ground_nx
-        if keys[ctrl["left"]]:
+        if inp["left"]:
             self.vx = -tx * MOVE_SPEED
             self.vy = -ty * MOVE_SPEED
             self.facing = -1
-        elif keys[ctrl["right"]]:
+            # Aim follows the surface tangent the player is actually walking
+            # along, so attacks fire where the player is heading.
+            self.aim_dir = (-tx, -ty)
+        elif inp["right"]:
             self.vx = tx * MOVE_SPEED
             self.vy = ty * MOVE_SPEED
             self.facing = 1
+            self.aim_dir = (tx, ty)
         else:
             self.vx *= 0.8
             self.vy *= 0.8
 
-        if keys[ctrl["down"]] and self.ground_ny > 0.5:
+        if inp["down"] and self.ground_ny > 0.5:
             self.vx = self.ground_nx * JUMP_FORCE
             self.vy = self.ground_ny * JUMP_FORCE
             self.on_ground = False
-        elif keys[ctrl["up"]] and self.ground_ny < -0.5:
+            self.jumped = True
+        elif inp["up"] and self.ground_ny < -0.5:
             self.vx = self.ground_nx * JUMP_FORCE
             self.vy = self.ground_ny * JUMP_FORCE
             self.on_ground = False
-        elif keys[ctrl["right"]] and self.ground_nx > 0.5:
+            self.jumped = True
+        elif inp["right"] and self.ground_nx > 0.5:
             self.vx = self.ground_nx * JUMP_FORCE
             self.vy = self.ground_ny * JUMP_FORCE
             self.on_ground = False
-        elif keys[ctrl["left"]] and self.ground_nx < -0.5:
+            self.jumped = True
+        elif inp["left"] and self.ground_nx < -0.5:
             self.vx = self.ground_nx * JUMP_FORCE
             self.vy = self.ground_ny * JUMP_FORCE
             self.on_ground = False
+            self.jumped = True
 
-    def _move_hovering(self, keys: List[bool], ctrl: dict, blend: float) -> None:
+    def _move_hovering(self, blend: float) -> None:
+        inp = self.input
         friction = 0.85 - blend * 0.05
         if not self.charging and not self.movement_locked:
-            if keys[ctrl["left"]]:
+            if inp["left"]:
                 self.vx = -MOVE_SPEED
                 self.facing = -1
-            elif keys[ctrl["right"]]:
+            elif inp["right"]:
                 self.vx = MOVE_SPEED
                 self.facing = 1
             else:
                 self.vx *= friction
-            if keys[ctrl["up"]]:
+            if inp["up"]:
                 self.vy = -MOVE_SPEED
-            elif keys[ctrl["down"]]:
+            elif inp["down"]:
                 self.vy = MOVE_SPEED
             else:
                 self.vy *= friction
@@ -192,29 +213,30 @@ class Player:
             self.vy *= friction
         self.vy += GRAVITY * blend
 
-    def _move_free(self, keys: List[bool], ctrl: dict) -> None:
+    def _move_free(self) -> None:
+        inp = self.input
         if not self.charging and not self.movement_locked:
             in_field = self.gravity_nx != 0 or self.gravity_ny != 0
             if in_field:
-                if keys[ctrl["left"]]:
+                if inp["left"]:
                     self.vx = -MOVE_SPEED
                     self.facing = -1
-                elif keys[ctrl["right"]]:
+                elif inp["right"]:
                     self.vx = MOVE_SPEED
                     self.facing = 1
                 else:
                     self.vx *= 0.8
-                if keys[ctrl["up"]]:
+                if inp["up"]:
                     self.vy = -MOVE_SPEED
-                elif keys[ctrl["down"]]:
+                elif inp["down"]:
                     self.vy = MOVE_SPEED
                 else:
                     self.vy *= 0.8
             else:
-                if keys[ctrl["left"]]:
+                if inp["left"]:
                     self.vx = -MOVE_SPEED
                     self.facing = -1
-                elif keys[ctrl["right"]]:
+                elif inp["right"]:
                     self.vx = MOVE_SPEED
                     self.facing = 1
         self.vy += GRAVITY
