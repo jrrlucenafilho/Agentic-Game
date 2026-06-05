@@ -10,6 +10,10 @@ import pygame
 
 from ..config import (
     BEAM_COLLISION_PARTICLES,
+    BLACKHOLE_LAUNCH_FORCE,
+    BLACKHOLE_MAX,
+    BLACKHOLE_SPAWN_CHANCE,
+    BLACKHOLE_SPAWN_INTERVAL,
     FPS,
     HEIGHT,
     INITIAL_PLANETOID_MAX,
@@ -36,14 +40,17 @@ from ..config import (
     UFO_SPAWN_INTERVAL_BASE,
     UFO_SPAWN_INTERVAL_DECAY,
     UFO_SPAWN_INTERVAL_MAX,
+    WARP_COOLDOWN,
     WHITE,
     WIDTH,
 )
+from ..entities.black_hole import BlackHole
 from ..entities.enemy import UFO
-from ..entities.particle import Particle
+from ..entities.particle import Particle, burst, directional
 from ..entities.planetoid import Planetoid
 from ..rendering import background as bg
 from ..rendering.hud import draw_hud, draw_message
+from ..systems import audio
 from ..systems.spawner import create_platforms, init_players
 
 
@@ -64,18 +71,22 @@ class GameState:
     particles: List = field(default_factory=list)
     planetoids: List = field(default_factory=list)
     ufos: List = field(default_factory=list)
+    black_holes: List = field(default_factory=list)
     ufo_respawn_timer: int = 0
 
 
 class Game:
     def __init__(self) -> None:
+        pygame.mixer.pre_init(audio.SAMPLE_RATE, -16, 2, 512)
         pygame.init()
+        audio.init()
         self.screen = pygame.display.set_mode((WIDTH, HEIGHT))
         pygame.display.set_caption("Agentic Battle - Slime Arena")
         self.clock = pygame.time.Clock()
         self.font = pygame.font.Font(None, 36)
         self.big_font = pygame.font.Font(None, 72)
         self.small_font = pygame.font.Font(None, 28)
+        self._alive_prev: List[bool] = []
         self.state = GameState(
             prompt_surf=self.small_font.render("Press any key to continue", True, WHITE)
         )
@@ -109,9 +120,11 @@ class Game:
         state.particles.clear()
         state.planetoids.clear()
         state.ufos.clear()
+        state.black_holes.clear()
         state.ufo_respawn_timer = 0
         state.round_timer = 0
         state.round_ended = False
+        self._alive_prev = [p.alive for p in state.players]
         state.planetoids.extend(
             [
                 Planetoid(mode="moving")
@@ -127,6 +140,8 @@ class Game:
         bg.draw(self.screen)
         for plat in state.platforms:
             plat.draw(self.screen)
+        for bh in state.black_holes:
+            bh.draw(self.screen)
         for p in state.planetoids:
             p.draw(self.screen)
         for u in state.ufos:
@@ -144,6 +159,8 @@ class Game:
         state = self.state
         for player in state.players:
             player.update(keys_pressed, state.platforms, state.planetoids)
+            if player.alive:
+                self._emit_movement_particles(player)
         self._check_round_end()
 
         for player in state.players:
@@ -154,6 +171,10 @@ class Game:
                 beam = player.release_charge()
                 if beam:
                     state.lasers.append(beam)
+                    audio.play("shoot")
+                    state.particles.extend(
+                        directional(beam.x, beam.y, player.color, beam.vx, beam.vy, 8, speed=5)
+                    )
             elif shoot_held and player.charging:
                 player.update_charge()
 
@@ -161,6 +182,37 @@ class Game:
                 swipe = player.melee()
                 if swipe:
                     state.swipes.append(swipe)
+                    audio.play("sword")
+                    dx = math.cos(swipe.base_angle)
+                    dy = math.sin(swipe.base_angle)
+                    state.particles.extend(
+                        directional(
+                            player.rect.centerx, player.rect.centery,
+                            player.color, dx, dy, 10, spread=1.0, speed=6, life=14,
+                        )
+                    )
+
+    def _emit_movement_particles(self, player) -> None:
+        state = self.state
+        if player.jumped:
+            player.jumped = False
+            audio.play("jump")
+            state.particles.extend(
+                burst(player.rect.centerx, player.rect.centery, (255, 180, 60), 6,
+                      speed=3, life=14, gravity=0.1, size=3)
+            )
+            return
+        if player.on_ground:
+            return
+        speed = math.hypot(player.vx, player.vy)
+        if speed < 1.5:
+            return
+        # Thrust trail streaming out behind a flying player.
+        state.particles.extend(
+            directional(player.rect.centerx, player.rect.centery, (255, 150, 40),
+                        -player.vx, -player.vy, 1, spread=0.6, speed=1.5,
+                        life=10, gravity=0.04, size=3)
+        )
 
     def _update_ufos(self) -> None:
         state = self.state
@@ -181,6 +233,7 @@ class Game:
         result = entity.hit()
         if result:
             self.state.particles.extend(result)
+            audio.play("hit")
         return True
 
     def _hit_ufos(self, hit_check_fn) -> bool:
@@ -230,6 +283,7 @@ class Game:
                     my = (alive[i].y + alive[j].y) / 2
                     for _ in range(LASER_CLASH_PARTICLES):
                         state.particles.append(Particle(mx, my, WHITE))
+                    audio.play("clash")
                     removed.add(i)
                     removed.add(j)
                     break
@@ -281,6 +335,7 @@ class Game:
                     my = (s1.y + s2.y) / 2
                     for _ in range(SWIPE_CLASH_PARTICLES):
                         state.particles.append(Particle(mx, my, WHITE))
+                    audio.play("clash")
                     s1.owner.vx += -s1.owner.aim_dir[0] * SWIPE_CLASH_FORCE
                     s1.owner.vy += -s1.owner.aim_dir[1] * SWIPE_CLASH_FORCE
                     s2.owner.vx += -s2.owner.aim_dir[0] * SWIPE_CLASH_FORCE
@@ -301,6 +356,7 @@ class Game:
                     if beam.rect.colliderect(state.lasers[li].rect):
                         for _ in range(BEAM_COLLISION_PARTICLES):
                             state.particles.append(Particle(beam.x, beam.y, UFO_GREEN))
+                        audio.play("clash")
                         u.beams.pop(bi)
                         state.lasers.pop(li)
                         break
@@ -371,6 +427,18 @@ class Game:
         ):
             state.ufos.append(UFO())
 
+        if (
+            state.round_timer > 0
+            and state.round_timer % BLACKHOLE_SPAWN_INTERVAL == 0
+            and len(state.black_holes) < BLACKHOLE_MAX
+            and random.random() < BLACKHOLE_SPAWN_CHANCE
+        ):
+            bh = BlackHole(random.choice(["teleport", "launch"]))
+            state.black_holes.append(bh)
+            state.particles.extend(
+                burst(bh.x, bh.y, bh.color, 20, speed=5, life=28, gravity=0.0, size=3)
+            )
+
     def _update_planetoids(self) -> None:
         state = self.state
         alive = []
@@ -428,6 +496,82 @@ class Game:
         for plat in self.state.platforms:
             plat.update()
 
+    def _play_death_sounds(self) -> None:
+        cur = [p.alive for p in self.state.players]
+        for was, now in zip(self._alive_prev, cur):
+            if was and not now:
+                audio.play("explode")
+        self._alive_prev = cur
+
+    def _update_black_holes(self) -> None:
+        state = self.state
+        alive = []
+        for bh in state.black_holes:
+            collapse = bh.update()
+            if collapse:
+                state.particles.extend(collapse)
+            if bh.done:
+                continue
+            for player in state.players:
+                if not player.alive or player.warp_cooldown > 0:
+                    continue
+                bh.pull(player)
+                if bh.contains_center(player):
+                    self._trigger_black_hole(bh, player)
+            alive.append(bh)
+        state.black_holes = alive
+
+    def _trigger_black_hole(self, bh: BlackHole, player) -> None:
+        state = self.state
+        # Implosion at the spot where the player gets sucked in.
+        state.particles.extend(
+            burst(player.rect.centerx, player.rect.centery, bh.color, 16,
+                  speed=5, life=22, gravity=0.0, size=3)
+        )
+        if bh.kind == "teleport":
+            audio.play("warp")
+            dx, dy = self._find_warp_destination(bh)
+            player.rect.center = (int(dx), int(dy))
+            player.vx *= 0.3
+            player.vy *= 0.3
+            # Exit burst at the destination.
+            state.particles.extend(
+                burst(dx, dy, bh.color, 20, speed=6, life=26, gravity=0.0, size=4)
+            )
+        else:
+            audio.play("launch")
+            ang = random.uniform(0, math.tau)
+            player.vx = math.cos(ang) * BLACKHOLE_LAUNCH_FORCE
+            player.vy = math.sin(ang) * BLACKHOLE_LAUNCH_FORCE
+            player.on_ground = False
+            # Exit streak in the launch direction.
+            state.particles.extend(
+                directional(player.rect.centerx, player.rect.centery, bh.color,
+                            player.vx, player.vy, 20, spread=0.7, speed=8,
+                            life=24, gravity=0.0, size=4)
+            )
+        player.warp_cooldown = WARP_COOLDOWN
+
+    def _find_warp_destination(self, bh: BlackHole) -> tuple[float, float]:
+        margin = 120
+        for _ in range(20):
+            x = random.randint(margin, WIDTH - margin)
+            y = random.randint(margin, HEIGHT - margin)
+            if any(p.point_inside(x, y) for p in self.state.platforms):
+                continue
+            if math.hypot(x - bh.x, y - bh.y) < 300:
+                continue
+            if any(
+                math.hypot(x - o.x, y - o.y) < o.radius + 50
+                for o in self.state.black_holes
+            ):
+                continue
+            return float(x), float(y)
+        return (
+            float(random.randint(margin, WIDTH - margin)),
+            float(random.randint(margin, HEIGHT - margin)),
+        )
+
     def run(self) -> None:
         bg.generate()
         self._reset_round(1, reset_scores=True)
@@ -462,6 +606,7 @@ class Game:
                 continue
 
             self._update_players_and_input(keys_pressed)
+            self._update_black_holes()
             self._update_ufos()
             self._update_lasers()
             self._update_swipes()
@@ -471,6 +616,7 @@ class Game:
             self._spawn_entities()
             self._update_planetoids()
             self._update_platforms()
+            self._play_death_sounds()
             self._draw_scene()
             draw_message(
                 self.screen,

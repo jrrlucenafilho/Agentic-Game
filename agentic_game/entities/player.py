@@ -58,6 +58,8 @@ class Player:
         self.last_melee = 0
         self.transition_timer = 0
         self.movement_locked = False
+        self.jumped = False
+        self.warp_cooldown = 0
 
     def update(
         self,
@@ -67,6 +69,8 @@ class Player:
     ) -> None:
         if not self.alive:
             return
+        if self.warp_cooldown > 0:
+            self.warp_cooldown -= 1
         self._update_aim_dir(keys)
         gravity_field_count, in_hover, blend = self._compute_gravity_state(platforms, planetoids)
         self._handle_movement(keys, in_hover, blend, gravity_field_count)
@@ -145,10 +149,14 @@ class Player:
             self.vx = -tx * MOVE_SPEED
             self.vy = -ty * MOVE_SPEED
             self.facing = -1
+            # Aim follows the surface tangent the player is actually walking
+            # along, so attacks fire where the player is heading.
+            self.aim_dir = (-tx, -ty)
         elif keys[ctrl["right"]]:
             self.vx = tx * MOVE_SPEED
             self.vy = ty * MOVE_SPEED
             self.facing = 1
+            self.aim_dir = (tx, ty)
         else:
             self.vx *= 0.8
             self.vy *= 0.8
@@ -157,18 +165,22 @@ class Player:
             self.vx = self.ground_nx * JUMP_FORCE
             self.vy = self.ground_ny * JUMP_FORCE
             self.on_ground = False
+            self.jumped = True
         elif keys[ctrl["up"]] and self.ground_ny < -0.5:
             self.vx = self.ground_nx * JUMP_FORCE
             self.vy = self.ground_ny * JUMP_FORCE
             self.on_ground = False
+            self.jumped = True
         elif keys[ctrl["right"]] and self.ground_nx > 0.5:
             self.vx = self.ground_nx * JUMP_FORCE
             self.vy = self.ground_ny * JUMP_FORCE
             self.on_ground = False
+            self.jumped = True
         elif keys[ctrl["left"]] and self.ground_nx < -0.5:
             self.vx = self.ground_nx * JUMP_FORCE
             self.vy = self.ground_ny * JUMP_FORCE
             self.on_ground = False
+            self.jumped = True
 
     def _move_hovering(self, keys: List[bool], ctrl: dict, blend: float) -> None:
         friction = 0.85 - blend * 0.05

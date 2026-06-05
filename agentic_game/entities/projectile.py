@@ -111,6 +111,12 @@ class LightsaberSwipe:
             self.done = True
             return None
 
+        # Keep the swipe attached to its owner so it follows the player
+        # instead of staying frozen where the swing started.
+        if self.owner.alive:
+            self.x = float(self.owner.rect.centerx)
+            self.y = float(self.owner.rect.centery)
+
         for player in players:
             if (
                 player.alive
