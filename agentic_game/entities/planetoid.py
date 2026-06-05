@@ -43,7 +43,8 @@ class Planetoid:
             self.vy = 0.0
             self.gravity_strength = 0.6
             self.gravity_range = self.size * 4
-            self._noise = make_noise_func(int(self.x * 1009 + self.y * 7) & 0x7FFFFFFF)
+            self.seed = int(self.x * 1009 + self.y * 7) & 0x7FFFFFFF
+            self._noise = make_noise_func(self.seed)
             self.spiky = random.random() < 0.4
             if self.spiky:
                 self.spike_factor = 0.3
@@ -62,6 +63,7 @@ class Planetoid:
             self.y = float(random.randint(-100, -30))
             self.vx = random.uniform(-2, 2)
             self.vy = random.uniform(3, 8)
+            self.seed = 0
             self._noise = make_noise_func(0)
             self.spiky = False
 

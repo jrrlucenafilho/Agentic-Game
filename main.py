@@ -1,4 +1,4 @@
-from agentic_game.core.game import Game
+from agentic_game.core.app import main
 
 if __name__ == "__main__":
-    Game().run()
+    main()

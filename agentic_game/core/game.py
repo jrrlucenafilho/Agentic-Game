@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import math
+import os
 import random
-import sys
 from dataclasses import dataclass, field
 from typing import List
 
@@ -48,10 +48,17 @@ from ..entities.black_hole import BlackHole
 from ..entities.enemy import UFO
 from ..entities.particle import Particle, burst, directional
 from ..entities.planetoid import Planetoid
+from ..entities.player import Player
 from ..rendering import background as bg
 from ..rendering.hud import draw_hud, draw_message
 from ..systems import audio
-from ..systems.spawner import create_platforms, init_players
+from ..systems.spawner import (
+    NETWORK_CONTROLS,
+    create_platforms,
+    init_players,
+    random_spawn,
+    spawn_points,
+)
 
 
 @dataclass
@@ -60,6 +67,7 @@ class GameState:
     round_timer: int = 0
     round_ended: bool = False
     message_timer: int = 0
+    message_text: str | None = None
     message_surf: pygame.Surface | None = None
     prompt_surf: pygame.Surface | None = None
     p1_score: int = 0
@@ -76,16 +84,35 @@ class GameState:
 
 
 class Game:
-    def __init__(self) -> None:
-        pygame.mixer.pre_init(audio.SAMPLE_RATE, -16, 2, 512)
-        pygame.init()
-        audio.init()
-        self.screen = pygame.display.set_mode((WIDTH, HEIGHT))
-        pygame.display.set_caption("Agentic Battle - Slime Arena")
+    def __init__(
+        self,
+        screen: pygame.Surface | None = None,
+        headless: bool = False,
+        manage_players: bool = False,
+    ) -> None:
+        self.headless = headless
+        self.manage_players = manage_players
+        self._next_pid = 0
+        if headless:
+            os.environ.setdefault("SDL_VIDEODRIVER", "dummy")
+            os.environ.setdefault("SDL_AUDIODRIVER", "dummy")
+        if not pygame.get_init():
+            if not headless:
+                pygame.mixer.pre_init(audio.SAMPLE_RATE, -16, 2, 512)
+            pygame.init()
+        if not headless:
+            audio.init()
+        if screen is not None:
+            self.screen = screen
+        else:
+            self.screen = pygame.display.set_mode((1, 1) if headless else (WIDTH, HEIGHT))
+            if not headless:
+                pygame.display.set_caption("Agentic Battle - Slime Arena")
         self.clock = pygame.time.Clock()
         self.font = pygame.font.Font(None, 36)
         self.big_font = pygame.font.Font(None, 72)
         self.small_font = pygame.font.Font(None, 28)
+        self.should_quit = False
         self._alive_prev: List[bool] = []
         self.state = GameState(
             prompt_surf=self.small_font.render("Press any key to continue", True, WHITE)
@@ -93,11 +120,44 @@ class Game:
 
     def _show_message(self, text: str, duration: int) -> None:
         self.state.message_timer = duration
+        self.state.message_text = text
         self.state.message_surf = self.big_font.render(text, True, WHITE)
+
+    def _respawn_managed_players(self) -> None:
+        """Reposition and revive the already-connected players on the fresh
+        arena, keeping the same objects so client references stay valid."""
+        players = self.state.players
+        points = spawn_points(self.state.platforms, len(players))
+        for player, (sx, sy) in zip(players, points):
+            player.rect.x, player.rect.y = sx, sy
+            player.spawn_pos = (sx, sy)
+            player.vx = player.vy = 0.0
+            player.alive = True
+            player.on_ground = False
+            player.charging = False
+            player.movement_locked = False
+            player.warp_cooldown = 0
+
+    def add_player(self, name: str, color) -> Player:
+        """Spawn a new network-controlled player and return it."""
+        sx, sy = random_spawn(self.state.platforms)
+        player = Player(sx, sy, color, dict(NETWORK_CONTROLS), name)
+        player.pid = self._next_pid
+        self._next_pid += 1
+        self.state.players.append(player)
+        return player
+
+    def remove_player(self, player: Player) -> None:
+        if player in self.state.players:
+            self.state.players.remove(player)
 
     def _check_round_end(self) -> None:
         state = self.state
         if state.round_ended:
+            return
+        # A match needs at least two contenders (lets a lone player wait in
+        # the lobby without instantly "winning").
+        if len(state.players) < 2:
             return
         alive = [p for p in state.players if p.alive]
         if len(alive) <= 1:
@@ -114,7 +174,10 @@ class Game:
             state.p1_score = 0
             state.p2_score = 0
         state.platforms = create_platforms()
-        state.players = init_players(state.platforms)
+        if self.manage_players:
+            self._respawn_managed_players()
+        else:
+            state.players = init_players(state.platforms)
         state.lasers.clear()
         state.swipes.clear()
         state.particles.clear()
@@ -155,16 +218,27 @@ class Game:
         for p in state.particles:
             p.draw(self.screen)
 
-    def _update_players_and_input(self, keys_pressed) -> None:
+    def _set_local_inputs(self, keys) -> None:
+        for player in self.state.players:
+            ctrl = player.controls
+            inp = player.input
+            inp["left"] = bool(keys[ctrl["left"]])
+            inp["right"] = bool(keys[ctrl["right"]])
+            inp["up"] = bool(keys[ctrl["up"]])
+            inp["down"] = bool(keys[ctrl["down"]])
+            inp["shoot"] = bool(keys[ctrl["shoot"]])
+            inp["melee"] = bool(keys[ctrl["melee"]])
+
+    def _update_players_and_input(self) -> None:
         state = self.state
         for player in state.players:
-            player.update(keys_pressed, state.platforms, state.planetoids)
+            player.update(state.platforms, state.planetoids)
             if player.alive:
                 self._emit_movement_particles(player)
         self._check_round_end()
 
         for player in state.players:
-            shoot_held = keys_pressed[player.controls["shoot"]]
+            shoot_held = player.input["shoot"]
             if shoot_held and not player.charging:
                 player.start_charge()
             elif not shoot_held and player.charging:
@@ -178,7 +252,7 @@ class Game:
             elif shoot_held and player.charging:
                 player.update_charge()
 
-            if keys_pressed[player.controls["melee"]]:
+            if player.input["melee"]:
                 swipe = player.melee()
                 if swipe:
                     state.swipes.append(swipe)
@@ -572,26 +646,46 @@ class Game:
             float(random.randint(margin, HEIGHT - margin)),
         )
 
-    def run(self) -> None:
+    def _simulate(self) -> None:
+        """Advance the whole simulation one tick. Shared by local play and
+        the authoritative network server (no input reading, no drawing)."""
+        if self.state.message_timer > 0:
+            self.state.message_timer -= 1
+        self._update_players_and_input()
+        self._update_black_holes()
+        self._update_ufos()
+        self._update_lasers()
+        self._update_swipes()
+        self._update_ufo_beam_collisions()
+        self._update_particles()
+        self._advance_timers()
+        self._spawn_entities()
+        self._update_planetoids()
+        self._update_platforms()
+        self._play_death_sounds()
+
+    def run(self) -> str:
+        """Run the local hot-seat game. Returns 'quit' or 'menu'."""
         bg.generate()
         self._reset_round(1, reset_scores=True)
 
-        running = True
-        while running:
+        while True:
             keys_pressed = pygame.key.get_pressed()
 
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
-                    running = False
+                    self.should_quit = True
+                    return "quit"
+                if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
+                    return "menu"
                 if event.type == pygame.KEYDOWN and event.key == pygame.K_r:
                     self._reset_round(1, reset_scores=True)
                 if event.type == pygame.KEYDOWN and self.state.round_ended:
                     self._reset_round(self.state.round_num + 1)
 
-            if self.state.message_timer > 0:
-                self.state.message_timer -= 1
-
             if self.state.round_ended:
+                if self.state.message_timer > 0:
+                    self.state.message_timer -= 1
                 self._update_particles()
                 self._draw_scene()
                 draw_message(
@@ -605,18 +699,8 @@ class Game:
                 self.clock.tick(FPS)
                 continue
 
-            self._update_players_and_input(keys_pressed)
-            self._update_black_holes()
-            self._update_ufos()
-            self._update_lasers()
-            self._update_swipes()
-            self._update_ufo_beam_collisions()
-            self._update_particles()
-            self._advance_timers()
-            self._spawn_entities()
-            self._update_planetoids()
-            self._update_platforms()
-            self._play_death_sounds()
+            self._set_local_inputs(keys_pressed)
+            self._simulate()
             self._draw_scene()
             draw_message(
                 self.screen,
@@ -634,6 +718,3 @@ class Game:
 
             pygame.display.flip()
             self.clock.tick(FPS)
-
-        pygame.quit()
-        sys.exit()
