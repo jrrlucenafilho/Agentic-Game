@@ -58,6 +58,10 @@ Mudamos o modelo para o `deepseek-v4-flash` a separamos as features a serem adic
 - Feat 8: Adicionar Colisões de tiros
 - Feat 9: Adicionar chance de planetoides em movimento horizontal
 - Feat 10: Melhoras na HUD para tornar os dados de cada jogador mais destacados
+- Feat 11: Correção da Espada, Áudio 8-bit e Partículas (branch `feat11/black_holes`)
+- Feat 12: Buracos Negros (branch `feat11/black_holes`)
+- Feat 13: Multiplayer Online (branch `feat12/multiplayer`)
+- Feat 14: Battle Royale, Remoção do Placar e Otimização do Servidor (branch `feat12/multiplayer`)
 
 ## Feat 1: Planetoides com Gravidade Própria (`9ce53f9`, `e261319`)
 
@@ -328,7 +332,7 @@ Is the code clean? Can it be refactored any better? Evaluate it's formatting
 As features a seguir foram desenvolvidas numa etapa posterior, agora com o modelo
 `Claude Opus 4.8` através do `Claude Code`. O fluxo foi mais conversacional e
 iterativo: a cada pedido o agente lia o código relevante, implementava as mudanças e
-validava com testes automatizados (suíte `unittest` e *smoke tests* headless com
+validava com testes automatizados (suíte `unittest` e _smoke tests_ headless com
 `SDL_VIDEODRIVER=dummy`) antes de devolver o resultado.
 
 Antes de implementar qualquer coisa, pedimos para o agente entender o projeto e
@@ -365,20 +369,20 @@ Sobre a espada (`LightsaberSwipe`): o bug de "ficar sozinha no espaço" aconteci
 porque ela guardava a posição `x/y` fixa no momento da criação e nunca acompanhava o
 jogador — a correção fez o golpe seguir o centro do dono (`owner.rect.center`) a cada
 frame. Já o bug de "não ir na direção que olha" vinha do `aim_dir` apontar para os
-eixos do mundo enquanto, no chão, o jogador anda pela *tangente* da superfície curva do
+eixos do mundo enquanto, no chão, o jogador anda pela _tangente_ da superfície curva do
 asteroide; a correção fez o `aim_dir` (em `_move_on_ground`) acompanhar a tangente real
 do movimento, de modo que a espada e a mira do laser vão exatamente para onde o jogador
 se desloca, mesmo em superfícies inclinadas.
 
 Para o áudio, o agente optou por **sintetizar os sons em runtime** (`systems/audio.py`,
-novo) usando ondas quadradas/ruído com envelope e *sweep* de pitch, evitando a
+novo) usando ondas quadradas/ruído com envelope e _sweep_ de pitch, evitando a
 necessidade de arquivos `.wav`. Foram criados `shoot`, `sword`, `hit`, `explode`,
 `clash` e `jump`; o módulo é à prova de falha (sem dispositivo de áudio, as chamadas
-viram *no-op* silenciosas). A classe `Particle` foi estendida com parâmetros opcionais
+viram _no-op_ silenciosas). A classe `Particle` foi estendida com parâmetros opcionais
 (velocidade, vida, tamanho, gravidade) sem quebrar as chamadas antigas, mais helpers
 `burst()` e `directional()`, ligando rastro de propulsão, explosão ao pular, jato na
-boca do laser e leque no arco da espada. Os 27 testes seguiram passando e um *smoke
-test* headless confirmou a espada acompanhando o jogador e os sons sintetizados.
+boca do laser e leque no arco da espada. Os 27 testes seguiram passando e um _smoke
+test_ headless confirmou a espada acompanhando o jogador e os sons sintetizados.
 
 ## Feat 12: Buracos Negros (branch `feat11/black_holes`)
 
@@ -394,13 +398,13 @@ O agente criou a entidade `BlackHole` (`entities/black_hole.py`) com dois tipos:
 **teleporte** (roxo), que suga e reposiciona o jogador num ponto aleatório do mapa
 evitando plataformas/outros buracos (`_find_warp_destination`), e o de **slingshot**
 (laranja), que arremessa o jogador numa direção aleatória. Ambos têm sucção
-gravitacional num raio (`pull_range`) e um *event horizon* central que dispara o efeito,
+gravitacional num raio (`pull_range`) e um _event horizon_ central que dispara o efeito,
 com disco de acreção giratório, e surgem/colapsam dinamicamente soltando partículas.
-Para o som, foi adicionado *vibrato* ao gerador de tons, criando `warp` (warble
+Para o som, foi adicionado _vibrato_ ao gerador de tons, criando `warp` (warble
 ascendente) para o teleporte e `launch` (whoosh descendente) para o slingshot. As
 partículas de entrada (implosão) e saída (no destino ou na direção do arremesso) foram
 implementadas, além de um `warp_cooldown` no jogador para impedir re-sucção em cadeia.
-Tudo foi parametrizado em `config.py`. O *smoke test* confirmou teleporte, slingshot,
+Tudo foi parametrizado em `config.py`. O _smoke test_ confirmou teleporte, slingshot,
 sucção e 400 frames de loop completo sem erros.
 
 ## Feat 13: Multiplayer Online (branch `feat12/multiplayer`)
@@ -429,7 +433,7 @@ estado para renderizar, optando por **sincronização de estado** (em vez de loc
 determinístico) por ser mais robusto diante do uso intenso de `random` e
 `pygame.time.get_ticks()`. As principais mudanças: abstração de input (cada `Player` com
 um dict `self.input`, alimentado pelo teclado local ou pela rede, com `Game._simulate()`
-compartilhado); serialização (`network/serialize.py`) que gera um *snapshot* JSON e
+compartilhado); serialização (`network/serialize.py`) que gera um _snapshot_ JSON e
 reconstrói "view objects" no cliente reusando os mesmos `draw()` (inclusive a aparência
 procedural dos asteroides, via `seed` armazenado); protocolo TCP com prefixo de tamanho
 (`network/protocol.py`); servidor e cliente (`network/server.py`, `server.py`,
@@ -440,7 +444,7 @@ input/estado e a renderização das views headless.
 
 Ao subir o servidor pela primeira vez surgiu um erro real
 (`AttributeError: 'Planetoid' object has no attribute 'gravity_range'`): planetoides do
-tipo *falling* não têm `gravity_range` (atributo só dos *moving*). A serialização foi
+tipo _falling_ não têm `gravity_range` (atributo só dos _moving_). A serialização foi
 corrigida com `getattr(...)` e o agente rodou uma simulação longa (1100+ frames) para
 blindar outros atributos faltando em caminhos tardios da partida.
 
@@ -457,8 +461,8 @@ tbm fica bom
 ```
 
 O agente atuou em três frentes. Para o **battle royale (N jogadores)**: qualquer número
-de clientes pode entrar, cada conexão *spawna* seu próprio jogador com **cor aleatória**
-(distintas entre si) e nome `P1`, `P2`...; *join/leave* é dinâmico (cada jogador tem um
+de clientes pode entrar, cada conexão _spawna_ seu próprio jogador com **cor aleatória**
+(distintas entre si) e nome `P1`, `P2`...; _join/leave_ é dinâmico (cada jogador tem um
 `pid` estável, e o cliente mostra "VOCE = Px" na sua cor); o `_check_round_end` foi
 generalizado para N jogadores (exigindo ≥2 para a partida valer) e o `_reset_round`
 ganhou um modo gerenciado que mantém os mesmos objetos `Player` (preservando as
@@ -470,10 +474,10 @@ cliente passou a ter sua própria thread de envio que sempre manda o frame mais 
 JSON é codificado uma única vez por frame e os mesmos bytes vão para todos; o broadcast
 caiu para 30 fps (simulação segue a 60 fps); e o cap de partículas na rede foi reduzido.
 
-Vale registrar uma interpretação: o avatar do jogo é um *slime* (personagem circular),
+Vale registrar uma interpretação: o avatar do jogo é um _slime_ (personagem circular),
 então o agente implementou a parte concreta e verificável do pedido — cada novo jogador
 entra com **cor aleatória** — mantendo o sprite existente. Um teste de integração com 4
-clientes simultâneos confirmou cores distintas, *join* dinâmico, remoção ao desconectar
+clientes simultâneos confirmou cores distintas, _join_ dinâmico, remoção ao desconectar
 (4 → 3) e fim de round com mensagem de vencedor, com o modo local intacto e os 27 testes
 seguindo verdes.
 
