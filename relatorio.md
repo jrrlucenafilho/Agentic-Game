@@ -9,9 +9,10 @@ linguagem com frameworks custom. Possuo pouca experiência com HTML/JavaScript/T
 apenas sites simples com essas tecnologias. Já com a biblioteca pygame utilizada aqui, tenho
 pouca experiência, apenas em tutoriais.
 
-## Nome: João Viana+
+## Nome: João Pedro Viana
 
-\*\*
+Possuo experiência experiência com programação de jogos como space invaders e programação com arduino,
+tendo experiência em C++ e Python. Tenho alguma experiência com HTML/CSS e Python.
 
 # Seção 2: Desenvolvimento do Jogo
 
